@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:geonganghaejim/core/theme/app_colors.dart';
 import 'package:geonganghaejim/core/theme/app_spacing.dart';
 import 'package:geonganghaejim/core/theme/app_theme.dart';
 import 'package:geonganghaejim/widget/app_layout.dart';
@@ -118,6 +119,30 @@ void main() {
       final bottomAreaY = tester.getBottomLeft(find.text('하단')).dy;
 
       expect(bottomAreaY, lessThanOrEqualTo(screenHeight - 300));
+    });
+
+    testWidgets('배경 기본값은 웹 Layout 루트의 bg-gray-100과 같다 (AppColors.gray100)', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_wrap(const AppLayout(contents: Text('본문'))));
+
+      final scaffold = tester.widget<Scaffold>(find.byType(Scaffold));
+
+      expect(scaffold.backgroundColor, AppColors.light.gray100);
+    });
+
+    testWidgets('backgroundColor를 넘기면 그 색으로 덮는다 (웹 화면별 bg-white override 대응)', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          const AppLayout(contents: Text('본문'), backgroundColor: Colors.white),
+        ),
+      );
+
+      final scaffold = tester.widget<Scaffold>(find.byType(Scaffold));
+
+      expect(scaffold.backgroundColor, Colors.white);
     });
 
     testWidgets('canPop이 true면(하위 화면) 뒤로가기 버튼을 보여준다', (tester) async {

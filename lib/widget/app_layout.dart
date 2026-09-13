@@ -20,11 +20,17 @@ import '../core/theme/app_typography.dart';
 ///
 /// BottomArea 기본 패딩은 웹 `footer`의 `p-7`(사방 20px)을 그대로 옮긴다 —
 /// 다수 화면이 별다른 override 없이 이 기본값을 그대로 쓴다(실측).
+///
+/// 배경은 웹 `Layout` 루트의 `bg-gray-100`을 기본값으로 쓴다 — 웹은 셸이
+/// gray-100을 깔고 화면마다 필요하면 `bg-white`로 덮는 구조다(실측: 127개
+/// Header 사용처 중 화면 전체를 흰 배경으로 덮는 곳이 다수, 나머지는 셸
+/// 기본값 그대로). `backgroundColor`를 넘기면 그 색으로 덮는다.
 class AppLayout extends StatelessWidget {
   const AppLayout({
     required this.contents,
     this.header,
     this.bottomArea,
+    this.backgroundColor,
     super.key,
   });
 
@@ -32,9 +38,15 @@ class AppLayout extends StatelessWidget {
   final PreferredSizeWidget? header;
   final Widget? bottomArea;
 
+  /// 웹 `Layout` 루트 배경 대응. 기본값은 `AppColors.gray100`(웹
+  /// `bg-gray-100`) — 화면이 흰 배경을 쓰려면 `Colors.white`를 넘긴다.
+  final Color? backgroundColor;
+
   @override
   Widget build(BuildContext context) {
-    final spacing = Theme.of(context).extension<AppSpacing>()!;
+    final theme = Theme.of(context);
+    final spacing = theme.extension<AppSpacing>()!;
+    final colors = theme.extension<AppColors>()!;
 
     // Scaffold.bottomNavigationBar는 body와 달리 키보드(viewInsets.bottom)를
     // 피해 저절로 떠오르지 않는다 — _ScaffoldLayout이 그 자리를 항상 화면
@@ -44,6 +56,7 @@ class AppLayout extends StatelessWidget {
     final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
 
     return Scaffold(
+      backgroundColor: backgroundColor ?? colors.gray100,
       appBar: header,
       body: SafeArea(child: SingleChildScrollView(child: contents)),
       bottomNavigationBar: bottomArea == null
@@ -81,12 +94,13 @@ class AppLayoutHeader extends StatelessWidget implements PreferredSizeWidget {
     final colors = theme.extension<AppColors>()!;
 
     return AppBar(
-      // 웹 Header 자체는 배경이 없고 부모(Layout 루트, 기본 gray-100 또는
-      // 화면별 bg-white override)를 그대로 드러낸다. Flutter Scaffold의
-      // 배경은 이미 AppTheme.light()에서 흰색으로 고정돼 있으므로, 헤더도
-      // 그 값을 그대로 따라가 몸체와 이어져 보이게 한다 — 리터럴 색을 새로
-      // 박지 않고 테마 값을 그대로 참조한다.
-      backgroundColor: theme.scaffoldBackgroundColor,
+      // 웹 Header 자체는 고유 배경이 없고 부모(AppLayout, 기본 gray100 또는
+      // 화면별 backgroundColor override)를 그대로 드러낸다. AppBar는
+      // Scaffold와 별개로 자기 자신을 불투명하게 칠하는 Material이라
+      // transparent로 두어야 AppLayout이 고른 배경(기본값이든 override든)이
+      // 그대로 비쳐 보인다 — 특정 색을 골라 참조하면 AppLayout의
+      // backgroundColor가 바뀔 때마다 다시 맞춰줘야 한다.
+      backgroundColor: Colors.transparent,
       // Material3 기본 AppBar는 스크롤에 따라 표면에 elevation 틴트를
       // 얹는다. 디자인 토큰이 아니라 그 틴트를 끄기 위한 Flutter API 값.
       surfaceTintColor: Colors.transparent,
