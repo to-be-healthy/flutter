@@ -18,6 +18,10 @@ enum AppButtonVariant { primary, secondary, ghost }
 /// `AppTypography`는 `ThemeExtension`이 아니라 정적 상수 모음이라 —
 /// `AppTheme.light()`가 동일 상수로 `TextTheme`을 구성한다 — 여기서
 /// `Theme.of(context).extension<...>()` 경유 대상이 아니다.
+///
+/// 비활성 배경은 웹 `button.tsx`의 base 클래스(`disabled:bg-gray-300`)를
+/// 그대로 따라 variant와 무관하게 `gray300`이다. 웹에 `disabled:text-*`는
+/// 없으므로 전경색은 비활성 여부와 상관없이 variant 기본값을 유지한다.
 class AppButton extends StatelessWidget {
   const AppButton({
     required this.label,
@@ -29,7 +33,11 @@ class AppButton extends StatelessWidget {
 
   /// 배경을 그리는 [Container]에 붙는 키. 위젯 트리 모양이 아니라
   /// "배경이 어떤 색을 쓰는가"만 테스트가 검증할 수 있게 한다.
-  static const Key backgroundKey = Key('app_button_background');
+  ///
+  /// `label`로 구분한다 — 화면 하나에 `AppButton`이 둘 이상(확인/취소 등)
+  /// 있어도 각 인스턴스를 유일하게 찾을 수 있어야 하기 때문이다.
+  static Key backgroundKeyFor(String label) =>
+      ValueKey('AppButton.background.$label');
 
   final String label;
   final VoidCallback? onPressed;
@@ -45,15 +53,18 @@ class AppButton extends StatelessWidget {
 
     final isEnabled = onPressed != null && !isLoading;
 
-    final background = switch (variant) {
-      AppButtonVariant.primary =>
-        isEnabled ? colors.primary500 : colors.gray200,
-      AppButtonVariant.secondary => colors.blue50,
-      AppButtonVariant.ghost => Colors.transparent,
-    };
+    // 웹 button.tsx의 base가 `disabled:bg-gray-300` — variant 무관.
+    final background = !isEnabled
+        ? colors.gray300
+        : switch (variant) {
+            AppButtonVariant.primary => colors.primary500,
+            AppButtonVariant.secondary => colors.blue50,
+            AppButtonVariant.ghost => Colors.transparent,
+          };
 
+    // 웹은 비활성에서 전경색을 바꾸지 않는다(disabled:text-* 없음).
     final foreground = switch (variant) {
-      AppButtonVariant.primary => isEnabled ? Colors.white : colors.gray400,
+      AppButtonVariant.primary => Colors.white,
       AppButtonVariant.secondary => colors.primary500,
       AppButtonVariant.ghost => colors.gray600,
     };
@@ -62,7 +73,7 @@ class AppButton extends StatelessWidget {
       onTap: isEnabled ? onPressed : null,
       behavior: HitTestBehavior.opaque,
       child: Container(
-        key: backgroundKey,
+        key: backgroundKeyFor(label),
         width: double.infinity,
         padding: EdgeInsets.symmetric(vertical: spacing.s6),
         decoration: BoxDecoration(
