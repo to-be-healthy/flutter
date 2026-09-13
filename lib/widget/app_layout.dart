@@ -85,8 +85,16 @@ class AppLayoutHeader extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final VoidCallback? onBack;
 
+  /// 웹 `Layout.Header`의 `h-[56px]`(Tailwind 임의값 문법) 대응.
+  ///
+  /// 예외(토큰화하지 않는 리터럴): 56은 `AppSpacing.standard`의 12단
+  /// (4/6/8/10/12/16/20/24/28/32/36/48) 어디에도 없다 — 웹도 같은 이유로
+  /// 스페이싱 스케일 클래스 대신 임의값 문법(`h-[56px]`)을 썼다. 헤더
+  /// 높이는 간격 토큰이 아니라 이 컴포넌트 고유의 고정 치수라 그대로 둔다.
+  static const double height = 56;
+
   @override
-  Size get preferredSize => const Size.fromHeight(56);
+  Size get preferredSize => const Size.fromHeight(height);
 
   @override
   Widget build(BuildContext context) {
@@ -100,6 +108,13 @@ class AppLayoutHeader extends StatelessWidget implements PreferredSizeWidget {
       // transparent로 두어야 AppLayout이 고른 배경(기본값이든 override든)이
       // 그대로 비쳐 보인다 — 특정 색을 골라 참조하면 AppLayout의
       // backgroundColor가 바뀔 때마다 다시 맞춰줘야 한다.
+      //
+      // Scaffold는 자기 배경(widget.backgroundColor)을 AppBar 뒤를 포함한
+      // 전체 캔버스에 먼저 칠하는 Material이다(Flutter SDK
+      // scaffold.dart의 `color: widget.backgroundColor ?? ...` 참고). 이
+      // AppBar가 transparent인 한, 헤더 영역에는 그 Scaffold 배경이
+      // 그대로 비친다 — 회귀 테스트(app_layout_test.dart)가 이 둘을 함께
+      // 확인한다.
       backgroundColor: Colors.transparent,
       // Material3 기본 AppBar는 스크롤에 따라 표면에 elevation 틴트를
       // 얹는다. 디자인 토큰이 아니라 그 틴트를 끄기 위한 Flutter API 값.

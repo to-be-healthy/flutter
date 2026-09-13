@@ -145,6 +145,48 @@ void main() {
       expect(scaffold.backgroundColor, Colors.white);
     });
 
+    testWidgets('헤더 배경은 이음매 없이 Scaffold 기본 배경(gray100)과 같게 보인다', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          const AppLayout(
+            header: AppLayoutHeader(title: '로그인'),
+            contents: Text('본문'),
+          ),
+        ),
+      );
+
+      final scaffold = tester.widget<Scaffold>(find.byType(Scaffold));
+      final appBar = tester.widget<AppBar>(find.byType(AppBar));
+
+      // AppBar 자체가 투명해야 그 뒤로 Scaffold가 실제로 칠한 배경이
+      // 비쳐 보인다 — 둘 중 하나라도 어긋나면(예: 누가 AppBar에 색을
+      // 하드코딩하면) 헤더와 몸체 사이에 이음매가 생긴다.
+      expect(scaffold.backgroundColor, AppColors.light.gray100);
+      expect(appBar.backgroundColor, Colors.transparent);
+    });
+
+    testWidgets('backgroundColor를 override해도 헤더가 그 색과 이음매 없이 같게 보인다', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          const AppLayout(
+            header: AppLayoutHeader(title: '상세'),
+            contents: Text('본문'),
+            backgroundColor: Colors.white,
+          ),
+        ),
+      );
+
+      final scaffold = tester.widget<Scaffold>(find.byType(Scaffold));
+      final appBar = tester.widget<AppBar>(find.byType(AppBar));
+
+      expect(scaffold.backgroundColor, Colors.white);
+      expect(appBar.backgroundColor, Colors.transparent);
+    });
+
     testWidgets('canPop이 true면(하위 화면) 뒤로가기 버튼을 보여준다', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
