@@ -119,6 +119,9 @@ class AppLayoutHeader extends StatelessWidget implements PreferredSizeWidget {
       // Material3 기본 AppBar는 스크롤에 따라 표면에 elevation 틴트를
       // 얹는다. 디자인 토큰이 아니라 그 틴트를 끄기 위한 Flutter API 값.
       surfaceTintColor: Colors.transparent,
+      // 그림자 깊이(0=없음) 자체는 AppSpacing 같은 간격 토큰이 아니라
+      // Material 위젯의 elevation API 값이다 — 웹 Header에는 그림자가
+      // 없어 0으로 껐다(AppButton의 strokeWidth: 2와 같은 종류의 예외).
       elevation: 0,
       centerTitle: true,
       leading: Navigator.of(context).canPop()
