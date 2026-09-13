@@ -15,8 +15,9 @@ class AuthInterceptor extends Interceptor {
   /// 엔드포인트는 전부 `/api/v1/auth` 아래에 있으므로 `/auth/`로 앵커링해
   /// 다른 컨트롤러의 경로가 우연히 걸리는 일을 막는다.
   ///
-  /// `/api/v1/auth/logout`은 토큰이 필요한 경로이고, `/auth/login`을 부분
-  /// 문자열로 포함하지 않으므로 여기에 걸리지 않는다.
+  /// 로그아웃은 `/api/v1/auth/logout`이 아니라 **`/api/v1/members/logout`**이며
+  /// 토큰이 필요하다. `logout`은 `login`을 부분 문자열로 포함하지 않으므로
+  /// 여기에 걸리지 않는다.
   static const List<String> _publicPaths = <String>[
     '/auth/login',
     '/auth/join',

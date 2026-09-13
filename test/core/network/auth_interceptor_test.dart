@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geonganghaejim/core/network/auth_interceptor.dart';
+import 'package:geonganghaejim/core/network/dio_client.dart';
 import 'package:geonganghaejim/core/storage/token_storage.dart';
 import 'package:geonganghaejim/entity/auth/api/auth_api.dart';
 
@@ -48,6 +49,17 @@ class _FakeStorage implements TokenStorage {
 /// 브리프의 `RequestInterceptorHandler()..next(options)` 패턴이 핸들러의
 /// `Completer`를 미리 완료시켜, 구현이 `handler.next()`를 부르는 순간
 /// `StateError`가 나기 때문이다(dio 5.11.1 `_BaseHandler._throwIfCompleted`).
+/// `extra`로 넘긴 인터셉터가 실제로 체인에 들어갔는지 세는 용도.
+class _CountingInterceptor extends Interceptor {
+  int count = 0;
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    count++;
+    handler.next(options);
+  }
+}
+
 class _CapturingAdapter implements HttpClientAdapter {
   RequestOptions? lastRequest;
 
@@ -72,11 +84,20 @@ class _CapturingAdapter implements HttpClientAdapter {
 }
 
 /// [path]로 GET을 보내고 어댑터가 실제로 받아든 최종 요청을 돌려준다.
-Future<RequestOptions> _sendThrough(TokenStorage storage, String path) async {
+///
+/// 인터셉터를 손으로 끼우지 않고 **운영과 같은 `DioClient.create`로 조립**한다.
+/// 그래야 아래 단언들이 인터셉터 로직뿐 아니라 팩토리의 배선까지 함께 덮는다.
+Future<RequestOptions> _sendThrough(
+  TokenStorage storage,
+  String path, {
+  List<Interceptor> extra = const <Interceptor>[],
+}) async {
   final adapter = _CapturingAdapter();
-  final dio = Dio(BaseOptions(baseUrl: 'https://example.test'))
-    ..httpClientAdapter = adapter
-    ..interceptors.add(AuthInterceptor(storage: storage));
+  final dio = DioClient.create(
+    baseUrl: 'https://example.test',
+    storage: storage,
+    extra: extra,
+  )..httpClientAdapter = adapter;
 
   await dio.get<dynamic>(path);
 
@@ -152,7 +173,7 @@ void main() {
     test('보호 경로에는 토큰을 붙인다 — logout은 login에 걸리지 않는다', () async {
       for (final path in const <String>[
         '/api/v1/members/me',
-        '/api/v1/auth/logout',
+        '/api/v1/members/logout',
         '/api/v1/schedule/student',
         '/api/v1/workout-histories',
         '/api/v1/gyms',
@@ -170,6 +191,49 @@ void main() {
           reason: path,
         );
       }
+    });
+  });
+
+  group('DioClient.create 조립', () {
+    test('extra 인터셉터도 체인에 들어간다', () async {
+      final counter = _CountingInterceptor();
+
+      await _sendThrough(
+        _FakeStorage(access: 'token-abc'),
+        '/api/v1/members/me',
+        extra: <Interceptor>[counter],
+      );
+
+      expect(counter.count, 1);
+    });
+
+    test('storage가 null이면 AuthInterceptor를 달지 않는다', () async {
+      final adapter = _CapturingAdapter();
+      final dio = DioClient.create(baseUrl: 'https://example.test')
+        ..httpClientAdapter = adapter;
+
+      await dio.get<dynamic>('/api/v1/members/me');
+
+      expect(
+        dio.interceptors.whereType<AuthInterceptor>(),
+        isEmpty,
+        reason: 'storage 없이 만든 dio에 인증 인터셉터가 붙었다',
+      );
+      expect(
+        adapter.lastRequest!.headers.containsKey('Authorization'),
+        isFalse,
+      );
+    });
+
+    test('baseUrl은 오리진만 담고 경로 접두사를 삼키지 않는다', () async {
+      final request = await _sendThrough(
+        _FakeStorage(access: 'token-abc'),
+        '/api/v1/members/me',
+      );
+
+      // 패리티 하네스가 캡처하는 path가 HAR 골든의 전체 경로와 일치해야 한다.
+      expect(request.path, '/api/v1/members/me');
+      expect(request.baseUrl, 'https://example.test');
     });
   });
 }

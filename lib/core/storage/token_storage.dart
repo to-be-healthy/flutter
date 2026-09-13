@@ -18,7 +18,11 @@ abstract interface class TokenStorage {
   Future<void> clear();
 }
 
-/// OS 보안 저장소(Keychain / EncryptedSharedPreferences) 기반 구현.
+/// OS 보안 저장소 기반 구현.
+///
+/// iOS/macOS는 Keychain, Android는 AES-GCM으로 값을 암호화하고 그 키를
+/// KeyStore의 RSA-OAEP(SHA-256/MGF1)로 래핑한다 — Jetpack
+/// `EncryptedSharedPreferences`가 아니다(`AndroidOptions` 기본값 참조).
 class SecureTokenStorage implements TokenStorage {
   const SecureTokenStorage([
     FlutterSecureStorage storage = const FlutterSecureStorage(),

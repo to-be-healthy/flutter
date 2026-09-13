@@ -16,6 +16,10 @@ class AuthApi {
       signInPath,
       data: request.toJson(),
     );
-    return SignInResponse.fromJson(response.data!);
+    final body = response.data;
+    if (body == null) {
+      throw const FormatException('로그인 응답 바디가 비었다');
+    }
+    return SignInResponse.fromJson(body);
   }
 }
