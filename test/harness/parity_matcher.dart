@@ -69,13 +69,7 @@ List<String> diffRequests(
       coerceScalarTypes: false, // 본문은 타입까지 비교한다
     );
   } else {
-    final goldenEncoded = _tryEncode(goldenBody);
-    final actualEncoded = _tryEncode(actualBody);
-    if (goldenEncoded == null || actualEncoded == null) {
-      diffs.add(_unsupportedTypeDiff('body', goldenBody, actualBody));
-    } else if (goldenEncoded != actualEncoded) {
-      diffs.add('body: 기대 $goldenBody, 실제 $actualBody');
-    }
+    _diffLeaf('body', goldenBody, actualBody, diffs, coerceScalarTypes: false);
   }
 
   return diffs;
@@ -98,8 +92,7 @@ String? _tryEncode(Object? value) {
 String _unsupportedTypeDiff(String label, Object? golden, Object? actual) {
   return '$label: 패리티 비교 미지원 타입 '
       '(기대 ${golden.runtimeType}, 실제 ${actual.runtimeType}) — '
-      'JSON 직렬화가 불가능한 본문은 아직 비교할 수 없다. '
-      'FormData(파일 업로드) 지원은 Phase 7에서 필요하다.';
+      'FormData 등 JSON 직렬화가 불가능한 본문은 아직 지원하지 않는다.';
 }
 
 /// [coerceScalarTypes]가 참이면 `jsonEncode` 결과가 달라도 `toString()`이 같으면
@@ -113,33 +106,81 @@ void _diffMap(
   required bool coerceScalarTypes,
 }) {
   for (final key in golden.keys) {
+    final path = '$label.$key';
+
     if (!actual.containsKey(key)) {
-      diffs.add('$label.$key: 누락됨');
+      diffs.add('$path: 누락됨');
       continue;
     }
     if (maskedKeys.contains(key)) {
       continue; // 키 존재만 확인하고 값은 대조하지 않는다
     }
 
-    final goldenEncoded = _tryEncode(golden[key]);
-    final actualEncoded = _tryEncode(actual[key]);
-    if (goldenEncoded == null || actualEncoded == null) {
-      diffs.add(_unsupportedTypeDiff('$label.$key', golden[key], actual[key]));
+    final goldenValue = golden[key];
+    final actualValue = actual[key];
+
+    // 중첩 맵은 같은 규칙으로 재귀한다. har_to_golden.py 의 mask()가 중첩까지
+    // 재귀 마스킹하므로 비교도 같은 깊이로 가야 중첩 마스킹 키가 동작한다.
+    // 덤으로 중첩 맵이 키 순서에 흔들리지 않는다(웹 JSON.stringify 순서와
+    // Dart toJson() 선언 순서가 같을 이유가 없다).
+    if (goldenValue is Map && actualValue is Map) {
+      _diffMap(
+        path,
+        Map<String, dynamic>.from(goldenValue),
+        Map<String, dynamic>.from(actualValue),
+        diffs,
+        maskedKeys,
+        coerceScalarTypes: coerceScalarTypes,
+      );
       continue;
     }
-    if (goldenEncoded == actualEncoded) {
-      continue;
-    }
-    if (coerceScalarTypes && '${golden[key]}' == '${actual[key]}') {
-      continue; // 타입만 다르고 표기가 같다 (예: 골든 '0' vs 실제 0)
-    }
-    diffs.add('$label.$key: 기대 ${golden[key]}, 실제 ${actual[key]}');
+
+    _diffLeaf(
+      path,
+      goldenValue,
+      actualValue,
+      diffs,
+      coerceScalarTypes: coerceScalarTypes,
+    );
   }
   for (final key in actual.keys) {
     if (!golden.containsKey(key)) {
-      diffs.add('$label.$key: 예상치 못한 추가 (실제값 ${actual[key]})');
+      // 실패 출력은 CI 로그에 남는다. 골든에 없는 토큰·자격증명이 실제 값으로
+      // 찍히면 안 되므로 여기서도 마스킹한다.
+      final shown = maskedKeys.contains(key) ? '***' : actual[key];
+      diffs.add('$label.$key: 예상치 못한 추가 (실제값 $shown)');
     }
   }
+}
+
+/// 리프 값 하나를 비교한다. `jsonEncode` 대조는 **리프에서만** 한다
+/// (중첩 맵은 [_diffMap]이 재귀로 내려간다).
+///
+/// 불일치 메시지에 인코딩 결과와 런타임 타입을 함께 싣는다. `'0'`과 `0`처럼
+/// 표기가 같고 타입만 다른 경우 "기대 0, 실제 0"으로는 원인을 읽을 수 없다.
+void _diffLeaf(
+  String label,
+  Object? golden,
+  Object? actual,
+  List<String> diffs, {
+  required bool coerceScalarTypes,
+}) {
+  final goldenEncoded = _tryEncode(golden);
+  final actualEncoded = _tryEncode(actual);
+  if (goldenEncoded == null || actualEncoded == null) {
+    diffs.add(_unsupportedTypeDiff(label, golden, actual));
+    return;
+  }
+  if (goldenEncoded == actualEncoded) {
+    return;
+  }
+  if (coerceScalarTypes && '$golden' == '$actual') {
+    return; // 타입만 다르고 표기가 같다 (예: 골든 '0' vs 실제 0)
+  }
+  diffs.add(
+    '$label: 기대 $goldenEncoded(${golden.runtimeType}), '
+    '실제 $actualEncoded(${actual.runtimeType})',
+  );
 }
 
 /// `test/fixtures/requests/<name>.json` 을 읽어 골든 요청 목록을 반환한다.
@@ -165,6 +206,14 @@ void expectParity(
   Set<String> maskedKeys = kMaskedKeys,
 }) {
   final golden = loadGolden(fixtureName);
+
+  if (golden.isEmpty) {
+    throw ParityFailure(
+      '골든이 비어 있다: test/fixtures/requests/$fixtureName.json\n'
+      '요청 0건짜리 골든은 어떤 플로우든 통과시키므로 검증이 되지 않는다.\n'
+      'HAR 캡처 범위와 tool/har_to_golden.py 의 --host·경로 필터를 확인하라.',
+    );
+  }
 
   if (golden.length != actual.length) {
     throw ParityFailure(

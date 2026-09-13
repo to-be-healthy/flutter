@@ -58,7 +58,10 @@ void main() {
         body: null,
       );
 
-      expect(diffRequests(golden, actual), hasLength(1));
+      final diffs = diffRequests(golden, actual);
+      expect(diffs, hasLength(1));
+      expect(diffs.single, contains('path:'));
+      expect(diffs.single, contains('/api/v1/members/signin'));
     });
 
     test('본문 키 순서가 달라도 일치로 판정한다', () {
@@ -140,7 +143,11 @@ void main() {
         body: {'memberType': 'TRAINER'},
       );
 
-      expect(diffRequests(golden, actual), hasLength(1));
+      final diffs = diffRequests(golden, actual);
+      expect(diffs, hasLength(1));
+      expect(diffs.single, contains('body.memberType'));
+      expect(diffs.single, contains('STUDENT'));
+      expect(diffs.single, contains('TRAINER'));
     });
   });
 
@@ -177,7 +184,9 @@ void main() {
         body: null,
       );
 
-      expect(diffRequests(golden, actual), hasLength(1));
+      final diffs = diffRequests(golden, actual);
+      expect(diffs, hasLength(1));
+      expect(diffs.single, contains('query.page'));
     });
 
     test('본문에는 타입 정규화를 적용하지 않는다', () {
@@ -195,7 +204,13 @@ void main() {
         body: {'count': 0},
       );
 
-      expect(diffRequests(golden, actual), hasLength(1));
+      final diffs = diffRequests(golden, actual);
+      expect(diffs, hasLength(1));
+      // '기대 0, 실제 0'처럼 보이면 진짜 타입 버그를 읽어낼 수 없다.
+      expect(diffs.single, contains('body.count'));
+      expect(diffs.single, contains('"0"'));
+      expect(diffs.single, contains('String'));
+      expect(diffs.single, contains('int'));
     });
   });
 
@@ -218,7 +233,8 @@ void main() {
       expect(diffs, hasLength(1));
       expect(diffs.single, contains('미지원'));
       expect(diffs.single, contains('_NotEncodable'));
-      expect(diffs.single, contains('Phase 7'));
+      expect(diffs.single, contains('FormData'));
+      expect(diffs.single, isNot(contains('Phase')));
     });
 
     test('본문 안의 값이 직렬화 불가여도 예외를 던지지 않는다', () {
@@ -239,6 +255,146 @@ void main() {
       expect(diffs, hasLength(1));
       expect(diffs.single, contains('body.file'));
       expect(diffs.single, contains('미지원'));
+    });
+  });
+
+  group('중첩 맵', () {
+    test('중첩된 마스킹 키는 값이 달라도 일치로 판정한다', () {
+      // har_to_golden.py 의 mask()는 중첩까지 재귀 마스킹한다.
+      // 비교도 같은 깊이까지 가지 않으면 골든이 영원히 불일치한다.
+      const golden = CapturedRequest(
+        method: 'POST',
+        path: '/api/v1/members',
+        query: {},
+        body: {
+          'member': {'email': '***', 'memberType': 'STUDENT'},
+        },
+      );
+      const actual = CapturedRequest(
+        method: 'POST',
+        path: '/api/v1/members',
+        query: {},
+        body: {
+          'member': {'email': 'test@example.com', 'memberType': 'STUDENT'},
+        },
+      );
+
+      expect(diffRequests(golden, actual), isEmpty);
+    });
+
+    test('중첩 맵의 키 순서가 달라도 일치로 판정한다', () {
+      const golden = CapturedRequest(
+        method: 'POST',
+        path: '/x',
+        query: {},
+        body: {
+          'member': {'a': 1, 'b': 2},
+        },
+      );
+      const actual = CapturedRequest(
+        method: 'POST',
+        path: '/x',
+        query: {},
+        body: {
+          'member': {'b': 2, 'a': 1},
+        },
+      );
+
+      expect(diffRequests(golden, actual), isEmpty);
+    });
+
+    test('중첩 키 누락을 경로 라벨과 함께 보고한다', () {
+      const golden = CapturedRequest(
+        method: 'POST',
+        path: '/x',
+        query: {},
+        body: {
+          'member': {'email': '***', 'memberType': 'STUDENT'},
+        },
+      );
+      const actual = CapturedRequest(
+        method: 'POST',
+        path: '/x',
+        query: {},
+        body: {
+          'member': {'memberType': 'STUDENT'},
+        },
+      );
+
+      final diffs = diffRequests(golden, actual);
+      expect(diffs, hasLength(1));
+      expect(diffs.single, contains('body.member.email'));
+      expect(diffs.single, contains('누락됨'));
+    });
+
+    test('중첩 값 불일치를 경로 라벨과 함께 보고한다', () {
+      const golden = CapturedRequest(
+        method: 'POST',
+        path: '/x',
+        query: {},
+        body: {
+          'member': {'memberType': 'STUDENT'},
+        },
+      );
+      const actual = CapturedRequest(
+        method: 'POST',
+        path: '/x',
+        query: {},
+        body: {
+          'member': {'memberType': 'TRAINER'},
+        },
+      );
+
+      final diffs = diffRequests(golden, actual);
+      expect(diffs, hasLength(1));
+      expect(diffs.single, contains('body.member.memberType'));
+      expect(diffs.single, contains('TRAINER'));
+    });
+  });
+
+  group('예상치 못한 추가', () {
+    test('마스킹 키의 실제 값은 출력하지 않는다', () {
+      // 실패 출력은 CI 로그에 남는다. 실토큰이 평문으로 찍히면 안 된다.
+      const golden = CapturedRequest(
+        method: 'POST',
+        path: '/x',
+        query: {},
+        body: {'memberType': 'STUDENT'},
+      );
+      const actual = CapturedRequest(
+        method: 'POST',
+        path: '/x',
+        query: {},
+        body: {
+          'memberType': 'STUDENT',
+          'accessToken': 'eyJhbGciOiJIUzI1NiJ9.real-token',
+        },
+      );
+
+      final diffs = diffRequests(golden, actual);
+      expect(diffs, hasLength(1));
+      expect(diffs.single, contains('body.accessToken'));
+      expect(diffs.single, contains('***'));
+      expect(diffs.single, isNot(contains('eyJhbGciOiJIUzI1NiJ9')));
+    });
+
+    test('마스킹되지 않은 키는 값을 그대로 보여준다', () {
+      const golden = CapturedRequest(
+        method: 'POST',
+        path: '/x',
+        query: {},
+        body: <String, dynamic>{},
+      );
+      const actual = CapturedRequest(
+        method: 'POST',
+        path: '/x',
+        query: {},
+        body: {'memberType': 'STUDENT'},
+      );
+
+      final diffs = diffRequests(golden, actual);
+      expect(diffs, hasLength(1));
+      expect(diffs.single, contains('STUDENT'));
     });
   });
 
@@ -328,6 +484,21 @@ void main() {
           body: null,
         ),
       ]);
+    });
+
+    test('골든이 비어 있으면 공허한 통과 대신 실패한다', () {
+      // --host 오타 등으로 전부 걸러진 골든은 어떤 플로우든 통과시킨다.
+      writeFixture([]);
+
+      Object? caught;
+      try {
+        expectParity(_tmpFixture, const []);
+      } catch (e) {
+        caught = e;
+      }
+
+      expect(caught, isA<ParityFailure>());
+      expect(caught.toString(), contains('비어'));
     });
 
     test('골든과 다르면 순번·엔드포인트가 붙은 리포트로 실패한다', () {

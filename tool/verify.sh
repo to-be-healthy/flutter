@@ -10,6 +10,9 @@ dart format --set-exit-if-changed lib test
 echo "== flutter analyze =="
 flutter analyze --no-fatal-infos
 
+echo "== har_to_golden.py 테스트 =="
+python3 -m unittest discover -s tool -p '*_test.py'
+
 echo "== flutter test =="
 flutter test --reporter compact
 
