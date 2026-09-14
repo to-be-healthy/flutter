@@ -23,6 +23,14 @@ Widget _app({
   );
 }
 
+/// 헬스장 미선택 계정(`Tokens.gymId`가 null인 신규 가입자).
+const AuthUser _studentWithoutGym = AuthUser(
+  memberId: 7,
+  name: '신규',
+  userId: 'student1',
+  memberType: 'STUDENT',
+);
+
 const AuthUser _student = AuthUser(
   memberId: 6,
   name: '홍길동',
@@ -170,6 +178,35 @@ void main() {
 
       expect(find.text('트레이너로 시작'), findsOneWidget);
       expect(find.text('회원 로그인'), findsNothing);
+    });
+
+    testWidgets('헬스장을 고르지 않은 계정은 홈 대신 헬스장 선택으로 간다', (tester) async {
+      // 웹 `UserRoleMiddleware`: `gymId === null` → `redirect('/select-gym')`.
+      // 신규 가입자가 로그인 직후 처음 보는 화면이 홈이 아니라 여기다.
+      // 이 규칙이 빠지면 그 계정이 데이터 없는 홈을 보게 된다.
+      await tester.pumpWidget(
+        _app(
+          tokens: FakeTokenStorage(access: 'a', refresh: 'r'),
+          profile: FakeAuthProfileStorage(user: _studentWithoutGym),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('헬스장 선택'), findsOneWidget);
+      expect(find.text('회원 홈'), findsNothing);
+    });
+
+    testWidgets('헬스장이 있으면 홈으로 간다 (위 규칙이 과하지 않다)', (tester) async {
+      await tester.pumpWidget(
+        _app(
+          tokens: FakeTokenStorage(access: 'a', refresh: 'r'),
+          profile: FakeAuthProfileStorage(user: _student),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('회원 홈'), findsOneWidget);
+      expect(find.text('헬스장 선택'), findsNothing);
     });
 
     testWidgets('복원 중에 들어온 경로는 복원이 끝난 뒤 그대로 열린다', (tester) async {

@@ -36,6 +36,10 @@ abstract final class AppRoutes {
   static const String studentHome = '/student';
   static const String trainerHome = '/trainer';
 
+  /// 웹 `(login-required)/select-gym` — 헬스장 미선택 사용자가 홈 대신 먼저
+  /// 보는 화면. `UserRoleMiddleware`가 `gymId === null`이면 여기로 튕긴다.
+  static const String selectGym = '/select-gym';
+
   /// 웹 `?type=` 쿼리 이름. 온보딩과 로그인이 공유한다.
   static const String memberTypeQuery = 'type';
 
@@ -114,6 +118,11 @@ GoRouter createRouter({
         builder: (context, state) =>
             const NotImplementedPage(title: '트레이너 홈', webRoute: '/trainer'),
       ),
+      GoRoute(
+        path: AppRoutes.selectGym,
+        builder: (context, state) =>
+            const NotImplementedPage(title: '헬스장 선택', webRoute: '/select-gym'),
+      ),
     ],
   );
 }
@@ -179,6 +188,15 @@ String? _redirect(AuthState auth, GoRouterState state) {
   // 웹 `UserRoleMiddleware`: `role !== memberType` → 자기 홈으로.
   if (isHome && location != auth.user!.homeLocation) {
     return auth.user!.homeLocation;
+  }
+
+  // 웹 `UserRoleMiddleware`: `gymId === null` → `/select-gym`.
+  //
+  // 역할 확인 **다음**에 온다(웹의 순서 그대로). 헬스장을 아직 고르지 않은
+  // 계정은 홈을 볼 수 없다 — 신규 가입자가 처음 보는 화면이 홈이 아니라
+  // 여기다. 이 규칙이 빠지면 그 계정이 데이터 없는 홈을 보게 된다.
+  if (isHome && auth.user!.gymId == null) {
+    return AppRoutes.selectGym;
   }
 
   // 로그인 상태로 로그인 화면에 오면 홈으로. 웹은 `(login-unrequired)`라
