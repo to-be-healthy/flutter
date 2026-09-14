@@ -220,6 +220,26 @@ void main() {
       expect(find.text('트레이너로 시작'), findsNothing);
     });
 
+    testWidgets('리다이렉트가 연쇄돼도 한도 안에서 끝난다', (tester) async {
+      // 규칙이 다섯 개가 됐고 서로 연쇄된다. 가장 긴 사슬은
+      // 복원 중 딥링크 → 스플래시 → 원래 경로 → 역할 확인 → 헬스장 확인이다.
+      // go_router 는 리다이렉트가 한도(기본 5)를 넘으면 예외를 던지므로,
+      // "그냥 동작한다"가 아니라 **끝난다**는 것을 확인해야 한다.
+      await tester.pumpWidget(
+        _app(
+          tokens: FakeTokenStorage(access: 'a', refresh: 'r'),
+          profile: FakeAuthProfileStorage(user: _studentWithoutGym),
+          // 상대 역할의 홈으로 딥링크 — 역할 불일치와 헬스장 미선택이
+          // 동시에 걸리는 최악의 조합이다.
+          initialLocation: AppRoutes.trainerHome,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('헬스장 선택'), findsOneWidget);
+    });
+
     testWidgets('로그인 상태로 상대 역할의 홈에 가면 자기 홈으로 돌려보낸다', (tester) async {
       // 웹 `UserRoleMiddleware`: `role !== memberType` → 자기 홈으로.
       await tester.pumpWidget(
