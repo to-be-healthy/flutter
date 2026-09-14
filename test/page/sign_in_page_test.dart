@@ -147,8 +147,10 @@ void main() {
       // 하네스가 실제로 불일치를 잡는지 확인한다.
       // "통과했다"가 아니라 "실패를 잡는다"가 검증의 근거다.
       //
-      // `headers`를 넘기지 않는 것도 의도다 — 경로가 맞더라도 골든이 담은
-      // 헤더가 통째로 빠졌으니 어느 쪽이든 `ParityFailure`가 나야 한다.
+      // **무엇이 실패했는지까지 단언한다.** 헤더 비교가 들어온 뒤로는 경로와
+      // 헤더 두 가지가 동시에 어긋나므로, `throwsA(isA<ParityFailure>())`만
+      // 보면 경로 비교를 통째로 지워도 이 테스트가 통과한다 — 이름이
+      // 약속하는 것(경로 불일치를 잡는다)을 더는 검증하지 못한다.
       final bogus = [
         const CapturedRequest(
           method: 'POST',
@@ -158,7 +160,16 @@ void main() {
         ),
       ];
 
-      expect(() => expectParity('login', bogus), throwsA(isA<ParityFailure>()));
+      expect(
+        () => expectParity('login', bogus),
+        throwsA(
+          isA<ParityFailure>().having(
+            (e) => e.message,
+            'message',
+            contains('path:'),
+          ),
+        ),
+      );
     }, skip: true);
   });
 }
