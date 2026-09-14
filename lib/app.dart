@@ -9,6 +9,7 @@ import 'core/theme/app_theme.dart';
 import 'entity/auth/api/auth_api.dart';
 import 'entity/auth/model/auth_state.dart';
 import 'entity/auth/ui/auth_scope.dart';
+import 'shared/ui/app_toast.dart';
 
 /// OS 글꼴 배율 상한.
 ///
@@ -67,6 +68,11 @@ class _GeonganghaejimAppState extends State<GeonganghaejimApp> {
   late final AuthState _authState;
   late final GoRouter _router;
 
+  /// 화면이 아니라 **앱**이 토스트를 소유한다. 웹의 토스트 스토어가 모듈
+  /// 전역이라 컴포넌트가 언마운트돼도 살아 있는 것과 같은 수명이다
+  /// (`shared/ui/app_toast.dart`).
+  final AppToastController _toastController = AppToastController();
+
   @override
   void initState() {
     super.initState();
@@ -88,6 +94,7 @@ class _GeonganghaejimAppState extends State<GeonganghaejimApp> {
   @override
   void dispose() {
     _authState.dispose();
+    _toastController.dispose();
     _router.dispose();
     super.dispose();
   }
@@ -108,7 +115,13 @@ class _GeonganghaejimAppState extends State<GeonganghaejimApp> {
         // 조립 지점에서 한 번만 정한다.
         child: MediaQuery.withClampedTextScaling(
           maxScaleFactor: kMaxTextScaleFactor,
-          child: child!,
+          // `AppToastHost`는 라우터가 그리는 화면 **위**에 겹친다. 화면
+          // 전환이 일어나도 토스트가 그대로 떠 있는 것이 웹과 같은 동작이다
+          // (웹 `ToastProvider`도 라우트 바깥 루트 레이아웃에 있다).
+          child: AppToastScope(
+            notifier: _toastController,
+            child: AppToastHost(child: child!),
+          ),
         ),
       ),
     );
