@@ -138,7 +138,11 @@ class AppTextInput extends StatelessWidget {
           ),
         ),
         if (hasError) ...[
-          SizedBox(height: spacing.s2),
+          // 라벨과 같은 8px이다. 웹은 라벨·입력·에러를 **한 컨테이너의
+          // `gap-y-3`**로 묶으므로 세 사이 간격이 전부 같다
+          // (`SignInForm.tsx`의 `flex flex-col gap-y-3`, `FindIdPage.tsx`의
+          // `flex flex-col gap-3`). 6px이던 이전 값은 근거 없는 어긋남이었다.
+          SizedBox(height: spacing.s3),
           Text(
             errorText!,
             style: AppTypography.body4.copyWith(color: colors.point),

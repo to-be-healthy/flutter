@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geonganghaejim/core/theme/app_colors.dart';
 import 'package:geonganghaejim/core/theme/app_radius.dart';
+import 'package:geonganghaejim/core/theme/app_spacing.dart';
 import 'package:geonganghaejim/core/theme/app_theme.dart';
 import 'package:geonganghaejim/core/theme/app_typography.dart';
 import 'package:geonganghaejim/shared/ui/app_text_input.dart';
@@ -181,6 +182,27 @@ void main() {
         tester.widget<TextField>(find.byType(TextField)).decoration!.hintText,
         isNull,
       );
+    });
+
+    testWidgets('라벨·입력·에러 사이 간격이 모두 8px로 같다', (tester) async {
+      // 웹은 셋을 **한 컨테이너의 `gap-y-3`**으로 묶는다 —
+      // `SignInForm.tsx`의 `flex w-full flex-col gap-y-3`,
+      // `FindIdPage.tsx`의 `flex flex-col gap-3`. 둘 다 8px이다.
+      //
+      // 이전 구현은 에러 쪽만 `s2`(6px)였다. 근거 없는 2px 어긋남이었고,
+      // 62개 화면이 복사하기 전에 잡는다. 라벨 쪽과 **같은 값**임을 함께
+      // 단언해야 한쪽만 바뀌는 회귀가 잡힌다.
+      await tester.pumpWidget(
+        _wrap(const AppTextInput(label: '아이디', errorText: '아이디를 입력해주세요.')),
+      );
+
+      final labelBottom = tester.getRect(find.text('아이디')).bottom;
+      final field = tester.getRect(find.byType(TextField));
+      final errorTop = tester.getRect(find.text('아이디를 입력해주세요.')).top;
+
+      expect(field.top - labelBottom, AppSpacing.standard.s3);
+      expect(errorTop - field.bottom, AppSpacing.standard.s3);
+      expect(AppSpacing.standard.s3, 8.0);
     });
 
     testWidgets('에러 메시지를 별도 텍스트로 보여준다', (tester) async {
