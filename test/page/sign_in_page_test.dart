@@ -15,8 +15,15 @@ import '../harness/request_capture.dart';
 /// `skip`이 `bool?`이라 사유 문자열을 받지 못한다. 그래서 사유를 테스트
 /// 이름에 붙여 `flutter test` 출력에 드러낸다.
 ///
-/// `test/fixtures/requests/login.json`이 생기면 아래 두 테스트의
-/// `skip: true`와 이름 접미사만 떼면 된다 — **본문은 그대로 둔다.**
+/// 재개 조건 — `skip`만 떼면 되는 게 아니다:
+/// 1. `test/fixtures/requests/login.json`이 존재할 것.
+/// 2. 그 골든이 **STUDENT 로그인**으로 캡처돼 있을 것. `memberType`은
+///    `kMaskedKeys`에 없어 **값까지** 대조되는데, 아래 테스트는 `wrap()`
+///    기본값(`'STUDENT'`)으로 요청한다. 트레이너 계정으로 캡처했다면
+///    골든을 다시 뜨거나 `wrap(memberType: 'TRAINER')`로 맞춰야 한다.
+/// 3. 그 두 가지가 맞으면 `skip: true`와 이름 접미사만 떼면 된다 —
+///    **본문은 그대로 둔다.** `userId`·`password`는 `kMaskedKeys`라
+///    더미 값(`'testuser'`/`'password1234'`)을 그대로 둬도 통과한다.
 const String kGoldenPending = '골든 픽스처 없음 — Task 4 Step 7(HAR 캡처) 대기';
 
 void main() {
@@ -72,10 +79,14 @@ void main() {
     });
 
     testWidgets('입력한 아이디·비밀번호가 요청 본문에 그대로 실린다', (tester) async {
-      // 아래 패리티 테스트와 겹치지 않는다: `password`는 `kMaskedKeys`에 있어
-      // 골든 대조가 **키 존재만** 확인한다. 즉 userId와 password를 서로 바꿔
-      // 실어도 패리티는 통과한다. 그 결선(폼 → 요청 본문)은 여기서만 잡힌다.
-      // 반대로 method·path·memberType은 골든의 몫이라 여기서 다시 단언하지 않는다.
+      // 아래 패리티 테스트와 겹치지 않는다: `userId`·`password`가 **둘 다**
+      // `kMaskedKeys`에 있어(자격증명이 골든에 평문으로 남지 않도록) 골든 대조는
+      // 그 두 키의 **존재만** 확인하고 값은 보지 않는다. 따라서 폼이 아니라 상수를
+      // 실어 보내거나 두 값을 서로 바꿔 실어도 패리티는 통과한다 — 폼→본문 결선은
+      // 여기서만 잡힌다.
+      //
+      // 반대로 method·path·memberType은 마스킹 대상이 아니라 골든이 값까지
+      // 대조하므로 여기서 다시 단언하지 않는다.
       await tester.pumpWidget(wrap());
 
       await tester.enterText(find.byType(TextField).first, 'testuser');

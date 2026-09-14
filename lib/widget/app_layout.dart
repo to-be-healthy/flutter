@@ -132,7 +132,9 @@ class AppLayoutHeader extends StatelessWidget implements PreferredSizeWidget {
           : null,
       title: Text(
         title,
-        style: AppTypography.title1.copyWith(color: colors.gray800),
+        // 웹 `SignInPage.tsx:27` `Typography.HEADING_4_SEMIBOLD`
+        // (18px/130% semibold). `title1`(16px bold)이 아니다.
+        style: AppTypography.heading4SemiBold.copyWith(color: colors.gray800),
       ),
     );
   }

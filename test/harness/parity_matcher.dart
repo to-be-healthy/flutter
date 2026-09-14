@@ -9,9 +9,15 @@ import 'request_capture.dart';
 /// 값까지 비교하면 항상 실패한다. 자격증명·개인정보·매 요청 달라지는
 /// 토큰류가 여기 해당한다. `har_to_golden.py`는 이 키들의 값을
 /// 마스킹해서 저장하므로 골든 파일에 평문이 남지 않는다.
+///
+/// `userId`는 **로그인 식별자**다(백엔드 `CommandLoginMember.userId` — 웹은
+/// 이메일이 아니라 아이디로 로그인한다). 마스킹하지 않으면 골든을 뜰 때 실제
+/// 계정 아이디가 평문으로 레포에 커밋되고, 테스트의 더미 아이디와 값이 달라
+/// 패리티가 **계약과 무관한 이유로** 실패한다. `password`와 같은 이유로 여기 있다.
 const Set<String> kMaskedKeys = {
   'password',
   'newPassword',
+  'userId',
   'email',
   'phoneNumber',
   'accessToken',

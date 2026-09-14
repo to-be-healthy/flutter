@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geonganghaejim/core/theme/app_colors.dart';
 import 'package:geonganghaejim/core/theme/app_theme.dart';
+import 'package:geonganghaejim/core/theme/app_typography.dart';
 import 'package:geonganghaejim/shared/ui/app_text_input.dart';
 
 Widget _wrap(Widget child) {
@@ -13,6 +14,19 @@ Widget _wrap(Widget child) {
 
 void main() {
   group('AppTextInput', () {
+    testWidgets('라벨 타이포·색은 웹 TITLE_3 + text-gray-800과 같다', (tester) async {
+      await tester.pumpWidget(_wrap(const AppTextInput(label: '아이디')));
+
+      final label = tester.widget<Text>(find.text('아이디'));
+
+      // 웹 `SignInForm.tsx:50,74` = `cn(Typography.TITLE_3, 'text-gray-800')`
+      // → 14px/150% semibold, gray-800. gray-700이 아니다.
+      expect(
+        label.style,
+        AppTypography.title3.copyWith(color: AppColors.light.gray800),
+      );
+    });
+
     testWidgets('에러가 없으면 테두리에 색을 넣지 않는다', (tester) async {
       await tester.pumpWidget(_wrap(const AppTextInput(label: '아이디')));
 

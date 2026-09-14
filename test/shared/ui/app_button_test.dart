@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geonganghaejim/core/theme/app_colors.dart';
 import 'package:geonganghaejim/core/theme/app_theme.dart';
+import 'package:geonganghaejim/core/theme/app_typography.dart';
 import 'package:geonganghaejim/shared/ui/app_button.dart';
 
 Widget _wrap(Widget child) {
@@ -19,6 +20,19 @@ void main() {
       );
 
       expect(find.text('로그인'), findsOneWidget);
+    });
+
+    testWidgets('라벨 타이포는 웹 TITLE_1_SEMIBOLD와 같다', (tester) async {
+      await tester.pumpWidget(_wrap(AppButton(label: '로그인', onPressed: () {})));
+
+      final label = tester.widget<Text>(find.text('로그인'));
+
+      // 웹 `SignInForm.tsx:100` = `cn(Typography.TITLE_1_SEMIBOLD, 'h-[44px]')`
+      // → 16px/140% **semibold**. bold(`title1`)가 아니다.
+      expect(
+        label.style,
+        AppTypography.title1SemiBold.copyWith(color: Colors.white),
+      );
     });
 
     testWidgets('탭하면 콜백이 호출된다', (tester) async {

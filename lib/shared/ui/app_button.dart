@@ -92,7 +92,9 @@ class AppButton extends StatelessWidget {
               )
             : Text(
                 label,
-                style: AppTypography.title1.copyWith(color: foreground),
+                // 웹 `button.tsx` 사용처가 붙이는 `Typography.TITLE_1_SEMIBOLD`
+                // (16px/140% semibold). bold(`title1`)가 아니다.
+                style: AppTypography.title1SemiBold.copyWith(color: foreground),
               ),
       ),
     );

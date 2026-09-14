@@ -15,7 +15,7 @@ SKIP_EXT = ('.js', '.css', '.png', '.jpg', '.svg', '.woff', '.woff2', '.ico')
 # parity_matcher.dart 의 kMaskedKeys 와 반드시 동일하게 유지할 것.
 # 골든 파일에 실계정 자격증명이 평문으로 커밋되는 것을 막는다.
 MASKED_KEYS = {
-    'password', 'newPassword', 'email', 'phoneNumber',
+    'password', 'newPassword', 'userId', 'email', 'phoneNumber',
     'accessToken', 'refreshToken', 'id_token', 'code', 'state',
 }
 

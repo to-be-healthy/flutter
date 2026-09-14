@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:geonganghaejim/core/theme/app_colors.dart';
 import 'package:geonganghaejim/core/theme/app_spacing.dart';
 import 'package:geonganghaejim/core/theme/app_theme.dart';
+import 'package:geonganghaejim/core/theme/app_typography.dart';
 import 'package:geonganghaejim/widget/app_layout.dart';
 
 Widget _wrap(Widget child) => MaterialApp(theme: AppTheme.light(), home: child);
@@ -185,6 +186,29 @@ void main() {
 
       expect(scaffold.backgroundColor, Colors.white);
       expect(appBar.backgroundColor, Colors.transparent);
+    });
+
+    testWidgets('헤더 제목 타이포·색은 웹 HEADING_4_SEMIBOLD + gray-800과 같다', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          const AppLayout(
+            header: AppLayoutHeader(title: '로그인'),
+            contents: Text('본문'),
+          ),
+        ),
+      );
+
+      final title = tester.widget<Text>(find.text('로그인'));
+
+      // 웹 `SignInPage.tsx:27` = `cn(Typography.HEADING_4_SEMIBOLD,
+      // 'layout-header-title')` → 18px/130% semibold. 127개 화면이 이 헤더를
+      // 쓰므로 여기서 한 번 어긋나면 전부 어긋난다.
+      expect(
+        title.style,
+        AppTypography.heading4SemiBold.copyWith(color: AppColors.light.gray800),
+      );
     });
 
     testWidgets('canPop이 true면(하위 화면) 뒤로가기 버튼을 보여준다', (tester) async {

@@ -50,7 +50,9 @@ class AppTextInput extends StatelessWidget {
       children: [
         Text(
           label,
-          style: AppTypography.title3.copyWith(color: colors.gray700),
+          // 웹 `SignInForm.tsx:50,74` = `cn(Typography.TITLE_3,
+          // 'text-gray-800')`. gray700이 아니다.
+          style: AppTypography.title3.copyWith(color: colors.gray800),
         ),
         SizedBox(height: spacing.s3),
         TextField(
