@@ -151,6 +151,9 @@ class _SignInPageState extends State<SignInPage> {
             SizedBox(height: spacing.s10),
             AppTextInput(
               label: '아이디',
+              // 웹 `SignInForm.tsx:57`의 placeholder. 필수 입력 에러 문구와
+              // 글자가 같은 것도 웹 그대로다.
+              hint: '아이디를 입력해주세요.',
               controller: _userIdController,
               errorText: _userIdError,
             ),
@@ -158,6 +161,8 @@ class _SignInPageState extends State<SignInPage> {
             SizedBox(height: spacing.s8),
             AppTextInput(
               label: '비밀번호',
+              // 웹 `SignInForm.tsx:83`.
+              hint: '비밀번호를 입력해주세요.',
               controller: _passwordController,
               errorText: _passwordError,
               obscureText: true,

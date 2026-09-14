@@ -2,9 +2,11 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geonganghaejim/core/network/dio_client.dart';
+import 'package:geonganghaejim/core/theme/app_colors.dart';
 import 'package:geonganghaejim/core/theme/app_theme.dart';
 import 'package:geonganghaejim/entity/auth/api/auth_api.dart';
 import 'package:geonganghaejim/page/public/sign_in_page.dart';
+import 'package:geonganghaejim/shared/ui/app_button.dart';
 
 import '../harness/parity_matcher.dart';
 import '../harness/request_capture.dart';
@@ -43,6 +45,13 @@ import '../harness/request_capture.dart';
 /// 6. 로그인 경로(`/api/v1/auth/login`)에는 숫자 세그먼트가 없으므로
 ///    `--path-template` 유무가 이 골든에는 영향을 주지 않는다.
 
+/// 같은 문구를 쓰는 placeholder와 구분해 **에러 텍스트만** 고른다.
+/// 에러는 point 색, placeholder는 gray-500이다.
+Finder _errorText(String text) => find.byWidgetPredicate(
+  (w) => w is Text && w.data == text && w.style?.color == AppColors.light.point,
+  description: 'point 색 에러 텍스트 "$text"',
+);
+
 void main() {
   group('SignInPage', () {
     late RequestCapture capture;
@@ -73,6 +82,44 @@ void main() {
       expect(find.text('로그인'), findsOneWidget);
     });
 
+    testWidgets('키보드가 올라와도 로그인 버튼에 닿을 수 있다', (tester) async {
+      // 실기기 확인 항목 "키보드가 올라올 때 하단 버튼이 가려지지 않는가"를
+      // 사람 눈 대신 맡는다.
+      //
+      // **스크롤로 확인하지 않는다.** `ensureVisible`을 부르면 스크롤 뒤의
+      // 가시성만 보게 되고, 그건 `SingleChildScrollView`를 통째로 들어내도
+      // 통과한다(실제로 뮤테이션에서 확인했다). 이 화면의 버튼을 지키는 것은
+      // 스크롤이 아니라 **레이아웃이 키보드 위에서 끝난다는 사실**이므로,
+      // 스크롤하지 않은 상태의 위치를 그대로 잰다.
+      //
+      // 실측 여백(iPhone 17 Pro, 한글 키보드 336pt 가정): 버튼 아래끝 362pt,
+      // 가시 하한 538pt → **176pt 여유**. Phase 2가 웹처럼 로고 블록
+      // (40 + 64 + 55 = 159pt)을 되살려도 17pt가 남아 통과한다. 즉 이 단언이
+      // 깨지는 것은 로고보다 더 키울 때이고, 그때 bottomArea로 옮길지
+      // 스크롤에 기댈지를 의식적으로 결정하게 만든다.
+      // (뮤테이션 확인: 상단 여백 +200 → 562pt로 실패.)
+      tester.view.physicalSize = const Size(1206, 2622); // iPhone 17 Pro
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(wrap());
+
+      // iOS 한글 키보드가 대략 가리는 높이.
+      tester.view.viewInsets = const FakeViewPadding(bottom: 1008); // 논리 336
+      await tester.pumpAndSettle();
+
+      final buttonRect = tester.getRect(find.byType(AppButton));
+      final visibleBottom =
+          tester.view.physicalSize.height / tester.view.devicePixelRatio -
+          tester.view.viewInsets.bottom / tester.view.devicePixelRatio;
+
+      expect(
+        buttonRect.bottom,
+        lessThanOrEqualTo(visibleBottom),
+        reason: '로그인 버튼이 키보드 영역($visibleBottom pt 아래)에 갇혔다',
+      );
+    });
+
     testWidgets('트레이너 타입이면 제목이 트레이너 로그인이다', (tester) async {
       await tester.pumpWidget(wrap(memberType: 'TRAINER'));
 
@@ -87,11 +134,15 @@ void main() {
       await tester.pumpAndSettle();
 
       // 웹 SignInForm의 react-hook-form `required.message`와 같은 문구다.
-      // `textContaining('입력')`으로 느슨하게 잡으면 나중에 누가
-      // AppTextInput에 placeholder(웹 문구가 동일하다)를 붙이는 순간
-      // 유효성 검사가 깨져도 통과한다.
-      expect(find.text('아이디를 입력해주세요.'), findsOneWidget);
-      expect(find.text('비밀번호를 입력해주세요.'), findsOneWidget);
+      //
+      // **문구만으로는 못 고른다.** 웹은 같은 문장을 placeholder로도 쓰고
+      // (`SignInForm.tsx:57,83`) 이 구현도 그대로 따랐으므로, 빈 입력일 때
+      // 화면에는 같은 글자가 둘(placeholder + 에러) 있다. 이전 버전은
+      // `findsOneWidget`이라 placeholder가 붙는 순간 깨졌다 — 느슨하게
+      // `findsNWidgets(2)`로 바꾸면 유효성 검사가 통째로 빠져도 통과하므로,
+      // **에러 색(point)으로 에러 텍스트만 집어** 단언한다.
+      expect(_errorText('아이디를 입력해주세요.'), findsOneWidget);
+      expect(_errorText('비밀번호를 입력해주세요.'), findsOneWidget);
       expect(capture.captured, isEmpty);
     });
 

@@ -27,9 +27,15 @@ void main() {
       );
     });
 
-    testWidgets('입력 높이는 웹 h-[50px]와 같다', (tester) async {
+    testWidgets('입력 높이는 웹 h-[50px]와 같다 — 칠해지는 상자 자체가 50이다', (tester) async {
       // 웹 `SignInForm.tsx:58,81`의 `containerClassName='h-[50px]'`.
-      // 패딩 기반이던 이전 구현은 더 높았다.
+      //
+      // **이 단언이 무엇을 재는지가 핵심이다.** 이전 구현은 `TextField`를
+      // `SizedBox(height: 50)`로 감쌌고, 이 테스트는 그 SizedBox를 재서
+      // 통과했다. 실제로 칠해지는 채움·테두리 상자는 24pt(= body1 행 높이)
+      // 였고 50pt 슬롯 가운데 떠 있었다 — 시뮬레이터 실측에서야 드러났다.
+      // SizedBox를 없앤 지금은 `TextField`의 크기가 곧 `InputDecorator`가
+      // 콘텐츠에서 계산한 상자 높이라, 이 한 줄이 화면에 보이는 높이를 잡는다.
       await tester.pumpWidget(_wrap(const AppTextInput(label: '아이디')));
 
       expect(
@@ -68,13 +74,29 @@ void main() {
       );
     });
 
-    testWidgets('에러가 없으면 테두리에 색을 넣지 않는다', (tester) async {
+    testWidgets('에러가 없어도 웹과 같은 gray-200 테두리를 그린다', (tester) async {
+      // 웹 `TextInput.tsx`는 평상시에도 `border border-solid border-gray-200`
+      // 이다. 이전 구현은 `BorderSide.none`이라 테두리가 아예 없었다.
       await tester.pumpWidget(_wrap(const AppTextInput(label: '아이디')));
 
       final field = tester.widget<TextField>(find.byType(TextField));
       final border = field.decoration!.enabledBorder! as OutlineInputBorder;
 
-      expect(border.borderSide, BorderSide.none);
+      expect(border.borderSide.color, AppColors.light.gray200);
+      expect(border.borderSide.style, BorderStyle.solid);
+    });
+
+    testWidgets('입력을 채우지 않는다 — gray-100은 웹의 비활성 색이다', (tester) async {
+      // 웹 `TextInput.tsx`의 클래스에는 `bg-*`가 없어 페이지 배경이 비친다.
+      // gray-100이 등장하는 곳은 `disabled:bg-gray-100` 하나뿐이다. 이전
+      // 구현은 그 비활성 색을 평상시 채움으로 써서, 62개 화면이 복사했다면
+      // 모든 입력이 비활성처럼 보였을 것이다.
+      await tester.pumpWidget(_wrap(const AppTextInput(label: '아이디')));
+
+      final field = tester.widget<TextField>(find.byType(TextField));
+
+      expect(field.decoration!.filled, isFalse);
+      expect(field.decoration!.fillColor, isNull);
     });
 
     testWidgets('에러가 있으면 테두리가 point 색이 된다 (errorBorder는 도달 불가라 쓰지 않는다)', (
@@ -118,6 +140,34 @@ void main() {
           reason: 'errorText=$errorText 에서 도달 불가한 border가 남아 있다',
         );
       }
+    });
+
+    testWidgets('플레이스홀더를 웹처럼 BODY_1 + gray-500으로 보여준다', (tester) async {
+      // 웹 `TextInput.tsx`의 `twSelector('placeholder', Typography.BODY_1)` +
+      // `placeholder:text-gray-500`. 이 위젯에는 placeholder가 아예 없어서
+      // 로그인 화면에 안내 문구가 비어 있었다 — 시뮬레이터 대조에서 드러났다.
+      await tester.pumpWidget(
+        _wrap(const AppTextInput(label: '아이디', hint: '아이디를 입력해주세요.')),
+      );
+
+      final field = tester.widget<TextField>(find.byType(TextField));
+
+      expect(field.decoration!.hintText, '아이디를 입력해주세요.');
+      expect(field.decoration!.hintStyle!.color, AppColors.light.gray500);
+      expect(
+        field.decoration!.hintStyle!.fontSize,
+        AppTypography.body1.fontSize,
+      );
+      expect(find.text('아이디를 입력해주세요.'), findsOneWidget);
+    });
+
+    testWidgets('hint를 주지 않으면 플레이스홀더가 없다', (tester) async {
+      await tester.pumpWidget(_wrap(const AppTextInput(label: '아이디')));
+
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).decoration!.hintText,
+        isNull,
+      );
     });
 
     testWidgets('에러 메시지를 별도 텍스트로 보여준다', (tester) async {
