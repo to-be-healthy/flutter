@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import 'core/network/dio_client.dart';
+import 'core/router/app_router.dart';
+import 'core/storage/auth_profile_storage.dart';
 import 'core/storage/token_storage.dart';
 import 'core/theme/app_theme.dart';
 import 'entity/auth/api/auth_api.dart';
-import 'page/public/sign_in_page.dart';
+import 'entity/auth/model/auth_state.dart';
+import 'entity/auth/ui/auth_scope.dart';
 
 /// OS 글꼴 배율 상한.
 ///
@@ -26,50 +30,87 @@ const double kMaxTextScaleFactor = 1.3;
 
 /// 앱 조립 지점(composition root).
 ///
-/// `StatefulWidget`인 이유는 화면 상태가 있어서가 아니라 **`Dio`를 한 번만
-/// 만들기 위해서다.** `build()` 안에서 `DioClient.create()`를 부르면 리빌드마다
-/// 새 클라이언트와 인터셉터가 생기고 커넥션 풀이 매번 버려진다. 수명이
-/// 위젯과 같은 의존성은 `initState`에서 만든다 — Phase 1에서 DI 컨테이너를
-/// 넣기 전까지 화면이 늘어도 이 패턴을 그대로 쓴다.
-///
-/// 라우터는 Phase 1 범위라 지금은 로그인 화면을 `home`에 직접 건다.
+/// `StatefulWidget`인 이유는 화면 상태가 있어서가 아니라 **수명이 위젯과 같은
+/// 의존성을 한 번만 만들기 위해서다.** `build()` 안에서 `DioClient.create()`나
+/// `createRouter()`를 부르면 리빌드마다 새 클라이언트·새 라우터가 생겨
+/// 커넥션 풀과 네비게이션 스택이 매번 버려진다.
 class GeonganghaejimApp extends StatefulWidget {
-  const GeonganghaejimApp({required this.baseUrl, super.key});
+  const GeonganghaejimApp({
+    required this.baseUrl,
+    this.tokenStorage = const SecureTokenStorage(),
+    this.profileStorage = const SecureAuthProfileStorage(),
+    this.initialLocation = AppRoutes.onboarding,
+    super.key,
+  });
 
   /// 오리진만 넣는다(`https://geonganghaejim.site`). `/api/v1` 같은 경로
   /// 접두사를 여기 넣으면 패리티 하네스가 캡처하는 경로가 골든과 어긋난다.
   final String baseUrl;
+
+  /// 기본값은 OS 보안 저장소다. **테스트는 반드시 페이크를 넣어야 한다** —
+  /// `flutter_secure_storage`는 플랫폼 채널을 타서 테스트 바이너리에서
+  /// `MissingPluginException`을 던진다.
+  final TokenStorage tokenStorage;
+  final AuthProfileStorage profileStorage;
+
+  /// 앱이 처음 여는 경로. 기본값은 웹 `/`와 같다.
+  ///
+  /// 열어둔 이유는 둘이다: 특정 화면에서 시작하는 테스트, 그리고 Phase 3의
+  /// 푸시 알림 딥링크(알림을 누르면 해당 화면에서 앱이 뜬다).
+  final String initialLocation;
 
   @override
   State<GeonganghaejimApp> createState() => _GeonganghaejimAppState();
 }
 
 class _GeonganghaejimAppState extends State<GeonganghaejimApp> {
-  late final AuthApi _authApi;
+  late final AuthState _authState;
+  late final GoRouter _router;
 
   @override
   void initState() {
     super.initState();
-    _authApi = AuthApi(
-      DioClient.create(
-        baseUrl: widget.baseUrl,
-        storage: const SecureTokenStorage(),
+
+    _authState = AuthState(widget.tokenStorage, widget.profileStorage);
+    _router = createRouter(
+      authState: _authState,
+      authApi: AuthApi(
+        DioClient.create(baseUrl: widget.baseUrl, storage: widget.tokenStorage),
       ),
+      initialLocation: widget.initialLocation,
     );
+
+    // 저장된 세션을 복원한다. 끝날 때까지 라우터는 스플래시를 보여주고,
+    // 끝나면 `refreshListenable`이 리다이렉트를 다시 계산한다.
+    _authState.restore();
+  }
+
+  @override
+  void dispose() {
+    _authState.dispose();
+    _router.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return MaterialApp.router(
       title: '건강해짐',
       theme: AppTheme.light(),
-      // OS 글꼴 배율 정책. 화면마다 정하면 62개 화면이 제각각이 되므로
-      // 조립 지점에서 한 번만 정한다.
-      builder: (context, child) => MediaQuery.withClampedTextScaling(
-        maxScaleFactor: kMaxTextScaleFactor,
-        child: child!,
+      routerConfig: _router,
+      // `AuthScope`를 여기 두는 이유: `MaterialApp.router`의 `builder`는
+      // 라우터가 그리는 모든 화면의 **위**에 있다. 화면마다 감싸면 62개가
+      // 각자 감싸야 하고, 하나라도 빠뜨리면 그 화면에서만 `AuthScope.of`가
+      // 터진다.
+      builder: (context, child) => AuthScope(
+        notifier: _authState,
+        // OS 글꼴 배율 정책. 화면마다 정하면 62개 화면이 제각각이 되므로
+        // 조립 지점에서 한 번만 정한다.
+        child: MediaQuery.withClampedTextScaling(
+          maxScaleFactor: kMaxTextScaleFactor,
+          child: child!,
+        ),
       ),
-      home: SignInPage(authApi: _authApi),
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geonganghaejim/core/theme/app_colors.dart';
+import 'package:geonganghaejim/core/theme/app_radius.dart';
 import 'package:geonganghaejim/core/theme/app_theme.dart';
 import 'package:geonganghaejim/core/theme/app_typography.dart';
 import 'package:geonganghaejim/shared/ui/app_button.dart';
@@ -244,6 +245,72 @@ void main() {
         (cancel.decoration! as BoxDecoration).color,
         AppColors.light.gray300, // 비활성이라 ghost 기본(transparent) 대신 gray300
       );
+    });
+
+    testWidgets('모서리 반경은 웹 rounded-lg(12px)다', (tester) async {
+      // 웹 `button.tsx` base의 `rounded-lg` → `var(--radius-l)` → 12px
+      // (`global.css`). 이전 구현은 `radius.m`(8px)이었다 — 입력이 8px이라
+      // 눈으로는 잘 안 드러나고, 반경을 단언하는 테스트가 없어서 통과했다.
+      await tester.pumpWidget(_wrap(AppButton(label: '로그인', onPressed: () {})));
+
+      final box = tester.widget<Container>(
+        find.byKey(AppButton.backgroundKeyFor('로그인')),
+      );
+      final decoration = box.decoration! as BoxDecoration;
+
+      expect(
+        decoration.borderRadius,
+        BorderRadius.circular(AppRadius.standard.l),
+      );
+      expect(AppRadius.standard.l, 12.0);
+    });
+
+    testWidgets('outline은 투명 배경 + primary-500 테두리·글자다', (tester) async {
+      // 웹 `button.tsx`의 `outline: border border-input bg-background`에
+      // 호출부(`SignInPage.tsx`의 회원가입 버튼)가 얹는
+      // `border-primary-500 text-primary-500`까지가 실제 렌더 형태다.
+      await tester.pumpWidget(
+        _wrap(
+          AppButton(
+            label: '회원가입',
+            onPressed: () {},
+            variant: AppButtonVariant.outline,
+          ),
+        ),
+      );
+
+      final box = tester.widget<Container>(
+        find.byKey(AppButton.backgroundKeyFor('회원가입')),
+      );
+      final decoration = box.decoration! as BoxDecoration;
+
+      expect(decoration.color, Colors.transparent);
+      expect(
+        (decoration.border! as Border).top.color,
+        AppColors.light.primary500,
+      );
+      expect(
+        tester.widget<Text>(find.text('회원가입')).style!.color,
+        AppColors.light.primary500,
+      );
+    });
+
+    testWidgets('outline 외의 variant에는 테두리가 없다', (tester) async {
+      // 테두리를 variant 무관하게 그리면 primary 버튼에 웹에 없는 윤곽이 생긴다.
+      for (final variant in AppButtonVariant.values) {
+        if (variant == AppButtonVariant.outline) continue;
+        await tester.pumpWidget(
+          _wrap(AppButton(label: '확인', onPressed: () {}, variant: variant)),
+        );
+        final box = tester.widget<Container>(
+          find.byKey(AppButton.backgroundKeyFor('확인')),
+        );
+        expect(
+          (box.decoration! as BoxDecoration).border,
+          isNull,
+          reason: '$variant 에 테두리가 생겼다',
+        );
+      }
     });
   });
 }

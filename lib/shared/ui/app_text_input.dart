@@ -121,6 +121,7 @@ class AppTextInput extends StatelessWidget {
             // Material 기본 `UnderlineInputBorder`로 떨어지므로, 비활성
             // 입력을 추가할 때 `disabledBorder`를 명시할 것.)
             enabledBorder: OutlineInputBorder(
+              // 웹 입력의 `rounded-md` = `var(--radius-m)` = 8px.
               borderRadius: BorderRadius.circular(radius.m),
               // 웹 `border border-solid border-gray-200`. 에러일 때만
               // point로 바뀐다(`SignInForm.tsx`의 `border-point`).

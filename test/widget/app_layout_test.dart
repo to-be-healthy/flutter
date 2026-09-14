@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geonganghaejim/core/theme/app_colors.dart';
 import 'package:geonganghaejim/core/theme/app_spacing.dart';
@@ -267,7 +268,28 @@ void main() {
       await tester.tap(find.text('열기'));
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.arrow_back_ios_new), findsOneWidget);
+      // 웹 `IconBack`(`back.svg`) 자산을 쓴다 — Material 기본 아이콘이 아니다.
+      expect(find.byType(SvgPicture), findsOneWidget);
+    });
+
+    testWidgets('onBack이 있으면 스택이 비어 있어도 뒤로가기를 보여준다', (tester) async {
+      // 웹 로그인 화면의 뒤로가기는 `router.push('/')`라 히스토리와 무관하게
+      // 늘 떠 있다. `canPop()`만 보면 첫 화면으로 진입했을 때 사라진다.
+      var tapped = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light(),
+          home: AppLayout(
+            header: AppLayoutHeader(title: '회원 로그인', onBack: () => tapped++),
+            contents: const Text('본문'),
+          ),
+        ),
+      );
+
+      expect(find.byType(SvgPicture), findsOneWidget);
+
+      await tester.tap(find.byType(IconButton));
+      expect(tapped, 1, reason: 'onBack이 불리지 않았다');
     });
 
     testWidgets('canPop이 false면(루트 화면) 뒤로가기 버튼을 감춘다', (tester) async {
@@ -280,7 +302,7 @@ void main() {
         ),
       );
 
-      expect(find.byIcon(Icons.arrow_back_ios_new), findsNothing);
+      expect(find.byType(SvgPicture), findsNothing);
     });
   });
 }

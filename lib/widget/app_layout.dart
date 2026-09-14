@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../core/theme/app_colors.dart';
 import '../core/theme/app_spacing.dart';
@@ -58,7 +59,26 @@ class AppLayout extends StatelessWidget {
     return Scaffold(
       backgroundColor: backgroundColor ?? colors.gray100,
       appBar: header,
-      body: SafeArea(child: SingleChildScrollView(child: contents)),
+      // 본문은 **최소 뷰포트 높이**를 가진다. 웹 `Layout.Contents`가
+      // `h-full flex-1 overflow-y-auto`라, 화면들이 그 안에서 `h-full` +
+      // `justify-around`/`justify-between`으로 세로 배치를 잡는다. 그냥
+      // `SingleChildScrollView`로 감싸면 높이가 무한이 되어 그 배치가 전부
+      // 무너진다(자식 높이만큼만 차지하고 위로 몰린다).
+      //
+      // `ConstrainedBox(minHeight:)`만으로 충분하고 `IntrinsicHeight`는
+      // 필요 없다 — `RenderFlex`가 자기 크기를 `constraints.constrain(...)`
+      // 으로 확정하므로 자식이 더 짧아도 minHeight까지 늘어나고, 남은 공간을
+      // `mainAxisAlignment`가 분배한다.
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: contents,
+            ),
+          ),
+        ),
+      ),
       bottomNavigationBar: bottomArea == null
           ? null
           : SafeArea(
@@ -80,9 +100,15 @@ class AppLayout extends StatelessWidget {
 /// 가운데 제목"을 반복 구현하고 있어, Flutter에서는 그 반복 형태를 표준
 /// 헤더로 승격했다.
 class AppLayoutHeader extends StatelessWidget implements PreferredSizeWidget {
-  const AppLayoutHeader({required this.title, this.onBack, super.key});
+  const AppLayoutHeader({this.title, this.onBack, super.key});
 
-  final String title;
+  /// 없으면 제목 없는 헤더가 된다. 웹 온보딩의 `<Layout.Header />`(자식 없음)
+  /// 처럼 **56px 자리만 잡는** 용도와, 뒤로가기만 있는 헤더에 쓴다.
+  final String? title;
+
+  /// 누르면 할 일. 웹은 화면마다 다르다 — 로그인 화면은 `router.push('/')`,
+  /// 로그인 수단 선택 화면은 `router.back()`이다. 그래서 기본 동작(pop)에
+  /// 맡기지 않고 화면이 넘긴다.
   final VoidCallback? onBack;
 
   /// 웹 `Layout.Header`의 `h-[56px]`(Tailwind 임의값 문법) 대응.
@@ -92,6 +118,9 @@ class AppLayoutHeader extends StatelessWidget implements PreferredSizeWidget {
   /// 스페이싱 스케일 클래스 대신 임의값 문법(`h-[56px]`)을 썼다. 헤더
   /// 높이는 간격 토큰이 아니라 이 컴포넌트 고유의 고정 치수라 그대로 둔다.
   static const double height = 56;
+
+  /// 웹 `back.svg`의 고유 크기(`width="20" height="20"`).
+  static const double backIconSize = 20;
 
   @override
   Size get preferredSize => const Size.fromHeight(height);
@@ -129,18 +158,39 @@ class AppLayoutHeader extends StatelessWidget implements PreferredSizeWidget {
       // 없어 0으로 껐다(AppButton의 strokeWidth: 2와 같은 종류의 예외).
       elevation: 0,
       centerTitle: true,
-      leading: Navigator.of(context).canPop()
+      // `onBack`이 있으면 스택과 무관하게 보인다. 웹 로그인 화면의 뒤로가기는
+      // `router.push('/')`라 히스토리가 없어도 늘 떠 있다 — `canPop()`만 보면
+      // 첫 화면으로 진입했을 때 사라진다.
+      leading: (onBack != null || Navigator.of(context).canPop())
           ? IconButton(
-              icon: Icon(Icons.arrow_back_ios_new, color: colors.gray800),
+              // 웹 `IconBack`(`back.svg`) 자산을 그대로 쓴다. Material
+              // `Icons.arrow_back_ios_new`는 자형이 다르다. 색을 덮지 않는
+              // 이유는 자산이 `stroke="black"`으로 고정돼 있고 웹 렌더도
+              // 순수 검정(픽셀 실측 `(0,0,0)`)이기 때문이다.
+              icon: SvgPicture.asset(
+                'assets/images/back.svg',
+                width: backIconSize,
+                height: backIconSize,
+              ),
               onPressed: onBack ?? () => Navigator.of(context).pop(),
             )
           : null,
-      title: Text(
-        title,
-        // 웹 `SignInPage.tsx:27` `Typography.HEADING_4_SEMIBOLD`
-        // (18px/130% semibold). `title1`(16px bold)이 아니다.
-        style: AppTypography.heading4SemiBold.copyWith(color: colors.gray800),
-      ),
+      title: title == null
+          ? null
+          : Text(
+              title!,
+              // 웹 `SignInPage.tsx:27` `Typography.HEADING_4_SEMIBOLD`
+              // (18px/130% semibold). `title1`(16px bold)이 아니다.
+              //
+              // 색은 `gray800`이다. 웹 `<h2>`에는 텍스트 색 클래스가 없어
+              // shadcn 기본 foreground(`#020817`)로 렌더되는데(픽셀 실측),
+              // 그건 디자인이 고른 색이 아니라 **지정하지 않아서 나온 값**이다.
+              // 이 팔레트의 가장 어두운 본문색인 gray800(`#2E3134`)을 쓴다 —
+              // 디자인 검수에서 뒤집히면 그때 토큰을 추가한다.
+              style: AppTypography.heading4SemiBold.copyWith(
+                color: colors.gray800,
+              ),
+            ),
     );
   }
 }

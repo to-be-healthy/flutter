@@ -5,7 +5,7 @@ import '../../core/theme/app_radius.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_typography.dart';
 
-enum AppButtonVariant { primary, secondary, ghost }
+enum AppButtonVariant { primary, secondary, ghost, outline }
 
 /// 웹 `src/shared/ui/button` 대응.
 ///
@@ -22,6 +22,12 @@ enum AppButtonVariant { primary, secondary, ghost }
 /// 비활성 배경은 웹 `button.tsx`의 base 클래스(`disabled:bg-gray-300`)를
 /// 그대로 따라 variant와 무관하게 `gray300`이다. 웹에 `disabled:text-*`는
 /// 없으므로 전경색은 비활성 여부와 상관없이 variant 기본값을 유지한다.
+///
+/// `outline`은 웹에서 제네릭하게 정의돼 있지만(`border border-input
+/// bg-background`) 실제 호출부는 전부 색을 덮어쓴다 — 로그인 화면의
+/// 회원가입 버튼이 `border-primary-500 text-primary-500`이다. 쓰이지 않는
+/// `border-input`(CSS 변수)을 옮기는 대신 **실제로 쓰이는 형태**를 담는다.
+/// 다른 색 조합이 필요해지면 그때 파라미터로 연다.
 class AppButton extends StatelessWidget {
   const AppButton({
     required this.label,
@@ -71,6 +77,7 @@ class AppButton extends StatelessWidget {
             AppButtonVariant.primary => colors.primary500,
             AppButtonVariant.secondary => colors.blue50,
             AppButtonVariant.ghost => Colors.transparent,
+            AppButtonVariant.outline => Colors.transparent,
           };
 
     // 웹은 비활성에서 전경색을 바꾸지 않는다(disabled:text-* 없음).
@@ -78,7 +85,20 @@ class AppButton extends StatelessWidget {
       AppButtonVariant.primary => Colors.white,
       AppButtonVariant.secondary => colors.primary500,
       AppButtonVariant.ghost => colors.gray600,
+      AppButtonVariant.outline => colors.primary500,
     };
+
+    // 웹 `outline`만 테두리를 가진다(`border border-input`, 호출부가
+    // `border-primary-500`으로 덮어씀). 나머지 variant는 테두리가 없다.
+    //
+    // 비활성일 때 테두리를 지우는 이유: 배경이 `gray300`으로 바뀌는데
+    // primary500 테두리가 남으면 웹에 없는 조합이 된다. 웹은
+    // `disabled:bg-gray-300`이 `bg-background`를 덮고 테두리 색 클래스는
+    // 그대로라 회색 배경 + 파란 테두리가 되지만, 그 상태를 쓰는 화면이
+    // 현재 없다 — 생기면 그때 웹 렌더를 확인하고 맞춘다.
+    final border = variant == AppButtonVariant.outline && isEnabled
+        ? Border.all(color: colors.primary500)
+        : null;
 
     // 스크린리더 노출. GestureDetector + Container + Text만으로는
     // TalkBack/VoiceOver가 "버튼"임을 알리지 못하고 비활성도 드러나지 않는다.
@@ -103,7 +123,11 @@ class AppButton extends StatelessWidget {
           height: height,
           decoration: BoxDecoration(
             color: background,
-            borderRadius: BorderRadius.circular(radius.m),
+            border: border,
+            // 웹 `button.tsx` base의 `rounded-lg` = `var(--radius-l)` = 12px.
+            // `rounded-md`(8px)가 아니다 — 입력(`AppTextInput`)이 8px이라
+            // 헷갈리기 쉽다.
+            borderRadius: BorderRadius.circular(radius.l),
           ),
           alignment: Alignment.center,
           child: isLoading

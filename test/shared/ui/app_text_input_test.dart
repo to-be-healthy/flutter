@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geonganghaejim/core/theme/app_colors.dart';
+import 'package:geonganghaejim/core/theme/app_radius.dart';
 import 'package:geonganghaejim/core/theme/app_theme.dart';
 import 'package:geonganghaejim/core/theme/app_typography.dart';
 import 'package:geonganghaejim/shared/ui/app_text_input.dart';
@@ -84,6 +85,18 @@ void main() {
 
       expect(border.borderSide.color, AppColors.light.gray200);
       expect(border.borderSide.style, BorderStyle.solid);
+    });
+
+    testWidgets('모서리 반경은 웹 rounded-md(8px)다', (tester) async {
+      // 웹 입력의 `rounded-md` → `var(--radius-m)` → 8px. 버튼(`rounded-lg`,
+      // 12px)과 다르다 — 둘을 같은 토큰으로 쓰면 한쪽이 조용히 틀어진다.
+      await tester.pumpWidget(_wrap(const AppTextInput(label: '아이디')));
+
+      final field = tester.widget<TextField>(find.byType(TextField));
+      final border = field.decoration!.enabledBorder! as OutlineInputBorder;
+
+      expect(border.borderRadius, BorderRadius.circular(AppRadius.standard.m));
+      expect(AppRadius.standard.m, 8.0);
     });
 
     testWidgets('입력을 채우지 않는다 — gray-100은 웹의 비활성 색이다', (tester) async {

@@ -8,8 +8,12 @@ import 'package:geonganghaejim/entity/auth/api/auth_api.dart';
 import 'package:geonganghaejim/page/public/sign_in_page.dart';
 import 'package:geonganghaejim/shared/ui/app_button.dart';
 
+import 'package:geonganghaejim/entity/auth/model/auth_state.dart';
+import 'package:geonganghaejim/entity/auth/ui/auth_scope.dart';
+
 import '../harness/parity_matcher.dart';
 import '../harness/request_capture.dart';
+import '../support/auth_fakes.dart';
 
 /// 로그인 골든 픽스처의 계약.
 ///
@@ -57,6 +61,9 @@ void main() {
     late RequestCapture capture;
     late Dio dio;
     late _StubAdapter adapter;
+    late FakeTokenStorage tokenStorage;
+    late FakeAuthProfileStorage profileStorage;
+    late AuthState authState;
 
     setUp(() {
       capture = RequestCapture();
@@ -65,11 +72,31 @@ void main() {
       // 네트워크로 나가지 않도록 응답을 가로챈다.
       adapter = _StubAdapter();
       dio.httpClientAdapter = adapter;
+
+      tokenStorage = FakeTokenStorage();
+      profileStorage = FakeAuthProfileStorage();
+      authState = AuthState(tokenStorage, profileStorage);
     });
 
+    // **패리티 경계:** 여기서는 라우터를 끼우지 않는다.
+    //
+    // 로그인에 성공하면 `AuthState`가 바뀌고, 실제 앱에서는 라우터가 그걸
+    // 보고 `/${memberType}`로 이동한다. 그 홈 화면이 붙는 Phase 3부터는
+    // 홈이 GET 3건(`members/trainer-mapping`·`home/student`·
+    // `notification/red-dot`)을 쏘는데, 라우터를 여기 끼우면 그 요청들이
+    // **이 화면의 캡처에 섞여** `login` 골든에 "예상치 못한 추가"로 잡힌다.
+    // 올바른 구현이 실패하는 것이다.
+    //
+    // 그래서 이 테스트가 보는 범위는 **로그인 요청까지**이고, 홈이 쏘는
+    // 3건은 홈 화면이 생길 때 `har/home-student.har`로 별도 골든
+    // (`expectParity('home-student', ...)`)을 만들어 검증한다.
+    // `login.json`이 1건인 것은 버그가 아니라 이 경계의 결과다.
     Widget wrap({String memberType = 'STUDENT'}) => MaterialApp(
       theme: AppTheme.light(),
-      home: SignInPage(authApi: AuthApi(dio), memberType: memberType),
+      home: AuthScope(
+        notifier: authState,
+        child: SignInPage(authApi: AuthApi(dio), memberType: memberType),
+      ),
     );
 
     testWidgets('아이디·비밀번호 입력과 로그인 버튼을 표시한다', (tester) async {
@@ -108,7 +135,10 @@ void main() {
       tester.view.viewInsets = const FakeViewPadding(bottom: 1008); // 논리 336
       await tester.pumpAndSettle();
 
-      final buttonRect = tester.getRect(find.byType(AppButton));
+      // `AppButton`은 이제 둘이다(로그인·회원가입). 제출 버튼만 잰다.
+      final buttonRect = tester.getRect(
+        find.byKey(AppButton.backgroundKeyFor('로그인')),
+      );
       final visibleBottom =
           tester.view.physicalSize.height / tester.view.devicePixelRatio -
           tester.view.viewInsets.bottom / tester.view.devicePixelRatio;
@@ -167,6 +197,56 @@ void main() {
       expect(body, isA<Map<String, dynamic>>());
       expect((body! as Map<String, dynamic>)['userId'], 'testuser');
       expect((body as Map<String, dynamic>)['password'], 'password1234');
+    });
+
+    testWidgets('로그인에 성공하면 토큰과 프로필을 저장한다', (tester) async {
+      // **Phase 0에 없던 조각이다.** 그때는 응답을 받고도 버려서
+      // `TokenStorage.writeTokens`의 프로덕션 호출부가 0개였고, 그래서
+      // "인증 요청이 헤더 없이 나가도 패리티가 통과한다"는 상태였다.
+      await tester.pumpWidget(wrap());
+
+      await tester.enterText(find.byType(TextField).first, 'testuser');
+      await tester.enterText(find.byType(TextField).last, 'password1234');
+      await tester.tap(find.text('로그인').last);
+      await tester.pumpAndSettle();
+
+      expect(tokenStorage.writeCount, 1);
+      expect(tokenStorage.access, _StubAdapter.accessToken);
+      expect(tokenStorage.refresh, _StubAdapter.refreshToken);
+
+      expect(profileStorage.writeCount, 1);
+      expect(profileStorage.user?.userId, _StubAdapter.userId);
+      expect(authState.isSignedIn, isTrue);
+    });
+
+    testWidgets('memberType은 요청한 값이 아니라 응답 값을 따른다', (tester) async {
+      // 웹도 `router.replace(`/${data.memberType?.toLowerCase()}`)`로 응답을
+      // 쓴다. STUDENT로 요청했는데 계정이 TRAINER면 서버 쪽이 옳다 —
+      // 요청 값을 믿으면 반대 역할의 홈으로 보내게 된다.
+      adapter.memberType = 'TRAINER';
+      await tester.pumpWidget(wrap());
+
+      await tester.enterText(find.byType(TextField).first, 'testuser');
+      await tester.enterText(find.byType(TextField).last, 'password1234');
+      await tester.tap(find.text('로그인').last);
+      await tester.pumpAndSettle();
+
+      expect(authState.user!.memberType, 'TRAINER');
+      expect(authState.user!.homeLocation, '/trainer');
+    });
+
+    testWidgets('요청이 실패하면 토큰을 저장하지 않는다', (tester) async {
+      adapter.statusCode = 401;
+      await tester.pumpWidget(wrap());
+
+      await tester.enterText(find.byType(TextField).first, 'testuser');
+      await tester.enterText(find.byType(TextField).last, 'wrongpassword');
+      await tester.tap(find.text('로그인').last);
+      await tester.pumpAndSettle();
+
+      expect(tokenStorage.writeCount, 0);
+      expect(profileStorage.writeCount, 0);
+      expect(authState.isSignedIn, isFalse);
     });
 
     testWidgets('요청이 실패하면 서버 메시지를 화면에 표시한다', (tester) async {
@@ -233,8 +313,18 @@ void main() {
 /// 2xx 외를 거부해 `DioException`을 던지고, 그때도 `response.data`는 아래
 /// 실패 envelope로 채워진다(웹이 `error.response.data.message`를 읽는 구조와 동일).
 class _StubAdapter implements HttpClientAdapter {
+  /// 성공 응답이 담는 값. 테스트가 "이 값이 저장소까지 갔는가"를 단언할 때
+  /// 문자열을 다시 적지 않도록 상수로 둔다.
+  static const String accessToken = 'at';
+  static const String refreshToken = 'rt';
+  static const String userId = 'testuser';
+
   /// 테스트가 `pumpWidget` 전에 바꿔 실패 경로를 재현한다.
   int statusCode = 200;
+
+  /// 서버가 돌려주는 역할. 요청한 값과 **다르게** 둘 수 있어야 한다 —
+  /// 웹이 요청 값이 아니라 응답 값을 따르는 것을 검증하는 자리다.
+  String memberType = 'STUDENT';
 
   @override
   void close({bool force = false}) {}
@@ -248,8 +338,9 @@ class _StubAdapter implements HttpClientAdapter {
     // 백엔드 ApiResultTokens envelope 형태를 그대로 흉내낸다.
     final body = statusCode == 200
         ? '{"status":"success","message":"로그인 성공","data":'
-              '{"memberId":1,"name":"홍길동","accessToken":"at","refreshToken":"rt",'
-              '"userId":"testuser","memberType":"STUDENT","gymId":7}}'
+              '{"memberId":1,"name":"홍길동",'
+              '"accessToken":"$accessToken","refreshToken":"$refreshToken",'
+              '"userId":"$userId","memberType":"$memberType","gymId":7}}'
         : '{"status":"fail",'
               '"message":"아이디 또는 비밀번호가 일치하지 않습니다.","data":null}';
 
