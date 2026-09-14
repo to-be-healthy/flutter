@@ -27,6 +27,47 @@ void main() {
       );
     });
 
+    testWidgets('입력 높이는 웹 h-[50px]와 같다', (tester) async {
+      // 웹 `SignInForm.tsx:58,81`의 `containerClassName='h-[50px]'`.
+      // 패딩 기반이던 이전 구현은 더 높았다.
+      await tester.pumpWidget(_wrap(const AppTextInput(label: '아이디')));
+
+      expect(
+        tester.getSize(find.byType(TextField)).height,
+        AppTextInput.height,
+      );
+      expect(AppTextInput.height, 50.0);
+    });
+
+    testWidgets('에러가 붙어도 입력 자체의 높이는 50px로 같다', (tester) async {
+      // 에러 메시지는 입력 박스 **바깥**의 별도 Text다 — 박스를 밀어내면
+      // 폼 전체가 웹과 어긋난다.
+      await tester.pumpWidget(
+        _wrap(const AppTextInput(label: '아이디', errorText: '아이디를 입력해주세요.')),
+      );
+
+      expect(
+        tester.getSize(find.byType(TextField)).height,
+        AppTextInput.height,
+      );
+    });
+
+    testWidgets('입력 타이포에 leadingDistribution even을 준다', (tester) async {
+      // 고정 높이 박스 안에서 웹과 같은 세로 위치를 얻기 위한 것이다 —
+      // CSS half-leading과 Flutter 기본 분배 규칙이 다르다.
+      await tester.pumpWidget(_wrap(const AppTextInput(label: '아이디')));
+
+      final field = tester.widget<TextField>(find.byType(TextField));
+
+      expect(
+        field.style,
+        AppTypography.body1.copyWith(
+          color: AppColors.light.gray800,
+          leadingDistribution: TextLeadingDistribution.even,
+        ),
+      );
+    });
+
     testWidgets('에러가 없으면 테두리에 색을 넣지 않는다', (tester) async {
       await tester.pumpWidget(_wrap(const AppTextInput(label: '아이디')));
 

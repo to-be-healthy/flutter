@@ -31,6 +31,17 @@ class AppButton extends StatelessWidget {
     super.key,
   });
 
+  /// 웹 `SignInForm.tsx:100`의 `h-[44px]` 대응.
+  ///
+  /// 예외(토큰화하지 않는 리터럴): 44는 `AppSpacing.standard`의 12단
+  /// (4/6/8/10/12/16/20/24/28/32/36/48) 어디에도 없다 — 웹도 같은 이유로
+  /// 스페이싱 클래스 대신 임의값 문법(`h-[44px]`)을 썼다. 버튼 높이는 간격
+  /// 토큰이 아니라 이 컴포넌트 고유의 고정 치수다(`AppLayoutHeader.height`와
+  /// 같은 성격의 예외).
+  ///
+  /// 패딩 기반(`vertical: spacing.s6`)이던 이전 구현은 약 10px 높았다.
+  static const double height = 44;
+
   /// 배경을 그리는 [Container]에 붙는 키. 위젯 트리 모양이 아니라
   /// "배경이 어떤 색을 쓰는가"만 테스트가 검증할 수 있게 한다.
   ///
@@ -87,7 +98,9 @@ class AppButton extends StatelessWidget {
         child: Container(
           key: backgroundKeyFor(label),
           width: double.infinity,
-          padding: EdgeInsets.symmetric(vertical: spacing.s6),
+          // 웹처럼 높이를 고정한다. 패딩으로 높이를 만들면 폰트 메트릭에 따라
+          // 값이 흔들리고, 62개 화면이 그 흔들림을 복사한다.
+          height: height,
           decoration: BoxDecoration(
             color: background,
             borderRadius: BorderRadius.circular(radius.m),
@@ -106,8 +119,13 @@ class AppButton extends StatelessWidget {
                   label,
                   // 웹 `button.tsx` 사용처가 붙이는 `Typography.TITLE_1_SEMIBOLD`
                   // (16px/140% semibold). bold(`title1`)가 아니다.
+                  // `leadingDistribution: even` — CSS는 여분 행간을 위아래
+                  // 절반씩 나누지만(half-leading) Flutter 기본값은 폰트의
+                  // ascent/descent 비율로 나눈다. 고정 높이 박스 안에서
+                  // Pretendard 한글 글자가 1~2px 어긋나는 원인이다.
                   style: AppTypography.title1SemiBold.copyWith(
                     color: foreground,
+                    leadingDistribution: TextLeadingDistribution.even,
                   ),
                 ),
         ),

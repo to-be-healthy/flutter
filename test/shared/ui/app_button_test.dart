@@ -29,9 +29,40 @@ void main() {
 
       // 웹 `SignInForm.tsx:100` = `cn(Typography.TITLE_1_SEMIBOLD, 'h-[44px]')`
       // → 16px/140% **semibold**. bold(`title1`)가 아니다.
+      //
+      // `leadingDistribution: even`은 고정 높이(44px) 박스 안에서 웹과 같은
+      // 세로 위치를 얻기 위한 것이다 — CSS는 여분 행간을 위아래 절반씩
+      // 나누는데(half-leading) Flutter 기본값은 폰트의 ascent/descent 비율로
+      // 나눠서, Pretendard 한글 메트릭에서 글자가 1~2px 어긋난다.
       expect(
         label.style,
-        AppTypography.title1SemiBold.copyWith(color: Colors.white),
+        AppTypography.title1SemiBold.copyWith(
+          color: Colors.white,
+          leadingDistribution: TextLeadingDistribution.even,
+        ),
+      );
+    });
+
+    testWidgets('버튼 높이는 웹 h-[44px]와 같다', (tester) async {
+      // 웹 `SignInForm.tsx:100`이 `h-[44px]`로 고정한다. 패딩 기반이던
+      // 이전 구현은 ~10px 높았다.
+      await tester.pumpWidget(_wrap(AppButton(label: '로그인', onPressed: () {})));
+
+      expect(
+        tester.getSize(find.byKey(AppButton.backgroundKeyFor('로그인'))).height,
+        AppButton.height,
+      );
+      expect(AppButton.height, 44.0);
+    });
+
+    testWidgets('로딩 인디케이터가 떠도 높이는 44px로 같다', (tester) async {
+      await tester.pumpWidget(
+        _wrap(AppButton(label: '로그인', onPressed: () {}, isLoading: true)),
+      );
+
+      expect(
+        tester.getSize(find.byKey(AppButton.backgroundKeyFor('로그인'))).height,
+        AppButton.height,
       );
     });
 

@@ -30,6 +30,14 @@ class AppTextInput extends StatelessWidget {
     super.key,
   });
 
+  /// 웹 `SignInForm.tsx:58,81`의 `containerClassName='h-[50px]'` 대응.
+  ///
+  /// 예외(토큰화하지 않는 리터럴): 50은 `AppSpacing.standard`의 12단
+  /// (4/6/8/10/12/16/20/24/28/32/36/48) 어디에도 없다 — 웹도 같은 이유로
+  /// 스페이싱 클래스 대신 임의값 문법(`h-[50px]`)을 썼다. 입력 높이는 간격
+  /// 토큰이 아니라 이 컴포넌트 고유의 고정 치수다.
+  static const double height = 50;
+
   final String label;
   final String? errorText;
   final ValueChanged<String>? onChanged;
@@ -55,35 +63,46 @@ class AppTextInput extends StatelessWidget {
           style: AppTypography.title3.copyWith(color: colors.gray800),
         ),
         SizedBox(height: spacing.s3),
-        TextField(
-          controller: controller,
-          onChanged: onChanged,
-          obscureText: obscureText,
-          keyboardType: keyboardType,
-          style: AppTypography.body1.copyWith(color: colors.gray800),
-          decoration: InputDecoration(
-            isDense: true,
-            contentPadding: EdgeInsets.symmetric(
-              horizontal: spacing.s6,
-              vertical: spacing.s6,
+        // 웹처럼 높이를 고정한다. 패딩으로 높이를 만들면 폰트 메트릭에 따라
+        // 값이 흔들리고, 62개 화면이 그 흔들림을 복사한다. 세로 정렬은
+        // `textAlignVertical`이 맡으므로 세로 패딩은 주지 않는다.
+        SizedBox(
+          height: height,
+          child: TextField(
+            controller: controller,
+            onChanged: onChanged,
+            obscureText: obscureText,
+            keyboardType: keyboardType,
+            textAlignVertical: TextAlignVertical.center,
+            // `leadingDistribution: even` — CSS는 여분 행간을 위아래 절반씩
+            // 나누지만(half-leading) Flutter 기본값은 폰트의 ascent/descent
+            // 비율로 나눈다. 고정 높이 박스 안에서 Pretendard 한글 글자가
+            // 1~2px 어긋나는 원인이다.
+            style: AppTypography.body1.copyWith(
+              color: colors.gray800,
+              leadingDistribution: TextLeadingDistribution.even,
             ),
-            filled: true,
-            fillColor: colors.gray100,
-            // `border:`는 두지 않는다 — `enabledBorder`가 항상 이겨 도달
-            // 불가한 죽은 분기이고, 62개 화면이 이 위젯을 복사한다.
-            // (부작용: 나중에 `enabled: false`를 붙이면 `disabledBorder`가
-            // Material 기본 `UnderlineInputBorder`로 떨어지므로, 비활성
-            // 입력을 추가할 때 `disabledBorder`를 명시할 것.)
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(radius.m),
-              borderSide: hasError
-                  ? BorderSide(color: colors.point)
-                  : BorderSide.none,
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(radius.m),
-              borderSide: BorderSide(
-                color: hasError ? colors.point : colors.primary500,
+            decoration: InputDecoration(
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(horizontal: spacing.s6),
+              filled: true,
+              fillColor: colors.gray100,
+              // `border:`는 두지 않는다 — `enabledBorder`가 항상 이겨 도달
+              // 불가한 죽은 분기이고, 62개 화면이 이 위젯을 복사한다.
+              // (부작용: 나중에 `enabled: false`를 붙이면 `disabledBorder`가
+              // Material 기본 `UnderlineInputBorder`로 떨어지므로, 비활성
+              // 입력을 추가할 때 `disabledBorder`를 명시할 것.)
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(radius.m),
+                borderSide: hasError
+                    ? BorderSide(color: colors.point)
+                    : BorderSide.none,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(radius.m),
+                borderSide: BorderSide(
+                  color: hasError ? colors.point : colors.primary500,
+                ),
               ),
             ),
           ),
