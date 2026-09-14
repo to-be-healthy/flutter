@@ -159,6 +159,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
               Text(
                 '안녕하세요!\n건강해짐입니다!',
                 textAlign: TextAlign.center,
+                // 웹 `<h1>`에는 텍스트 색 클래스가 없어 shadcn 기본
+                // foreground(`#020817`)로 렌더된다 — 디자인이 고른 색이
+                // 아니라 지정하지 않아서 나온 값이라, 이 팔레트의 가장
+                // 어두운 본문색을 쓴다(`AppLayoutHeader`와 같은 판단).
                 style: AppTypography.heading1.copyWith(color: colors.gray800),
               ),
             ],
