@@ -43,3 +43,11 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# HAR 원본 — 골든 픽스처의 출처.
+# 실계정 토큰·쿠키가 그대로 들어 있으므로 절대 커밋하지 않는다.
+# 다만 **삭제해서도 안 된다**: 골든은 har_to_golden.py로 HAR에서 생성되므로,
+# 생성기·비교기 규칙이 바뀌면 저장된 HAR을 다시 변환하면 끝난다.
+# HAR을 버리면 모든 후속 규칙 변경이 사람의 재캡처가 된다.
+har/*
+!har/README.md
