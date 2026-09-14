@@ -9,17 +9,19 @@ import 'package:geonganghaejim/page/public/sign_in_page.dart';
 import '../harness/parity_matcher.dart';
 import '../harness/request_capture.dart';
 
-/// 패리티 테스트 보류 사유.
+/// 로그인 골든 픽스처의 계약.
 ///
-/// `flutter_test`의 `testWidgets`는 `package:test`의 `test`와 달리
-/// `skip`이 `bool?`이라 사유 문자열을 받지 못한다. 그래서 사유를 테스트
-/// 이름에 붙여 `flutter test` 출력에 드러낸다.
+/// `test/fixtures/requests/login.json`은 `tool/har_to_golden.py`가
+/// `har/login.har`에서 생성한다 — 2026-09-14, geonganghaejim.site 학생 계정의
+/// **폼 로그인**(체험하기 버튼이 아니다) 캡처다.
 ///
-/// 재개 조건 — `skip`만 떼면 되는 게 아니다:
-/// 1. `test/fixtures/requests/login.json`이 존재할 것. **`headers` 키를 담은
-///    현재 형식이어야 한다** — `loadGolden`이 옛 형식(headers 없음)을 거부한다.
-///    `tool/har_to_golden.py`로 변환하면 자동으로 들어간다.
-/// 2. 그 골든이 **STUDENT 로그인**으로 캡처돼 있을 것. `memberType`은
+/// 아래가 그 골든과 이 파일의 패리티 테스트를 묶는 조건이다. 하나라도 어긋나면
+/// 재캡처하거나 요청 쪽을 웹에 맞춰라 — **단언을 지우거나 allowlist를 좁히는
+/// 것은 답이 아니다.**
+///
+/// 1. 골든은 `headers` 키를 담은 현재 형식이어야 한다. `loadGolden`이 옛
+///    형식(headers 없음)을 거부하고, 변환기가 그 키를 자동으로 넣는다.
+/// 2. **STUDENT 로그인**으로 캡처돼 있어야 한다. `memberType`은
 ///    `kMaskedKeys`에 없어 **값까지** 대조되는데, 아래 테스트는 `wrap()`
 ///    기본값(`'STUDENT'`)으로 요청한다. 트레이너 계정으로 캡처했다면
 ///    골든을 다시 뜨거나 `wrap(memberType: 'TRAINER')`로 맞춰야 한다.
@@ -29,16 +31,17 @@ import '../harness/request_capture.dart';
 ///    GET에까지 붙어 웹과 어긋나기 때문). 골든(웹 HAR)이
 ///    `application/json;charset=UTF-8`이면 여기서 차이가 뜬다 — 그건
 ///    하네스의 오탐이 아니라 실제 차이이므로 **요청 쪽을 웹에 맞춰라.**
-///    allowlist를 좁히거나 단언을 지우는 것은 답이 아니다.
 /// 4. `Authorization`은 양쪽 모두 없어야 한다. 로그인은 공개 경로이고
 ///    이 테스트의 `DioClient.create`는 `storage`를 넘기지 않아
-///    `AuthInterceptor` 자체가 붙지 않는다.
-/// 5. 로그인 경로(`/api/v1/auth/login`)에는 숫자 세그먼트가 없으므로
+///    `AuthInterceptor` 자체가 붙지 않는다. 웹도 토큰을 붙이지 않는 `api`
+///    인스턴스로 보낸다(`frontend/src/entity/auth/api/mutations.ts`).
+/// 5. 본문의 `userId`·`password`는 `kMaskedKeys`라 더미 값
+///    (`'testuser'`/`'password1234'`)을 그대로 둬도 통과한다. 반대로 웹 폼
+///    로그인은 `complimentaryLogin`을 **보내지 않는다** — 그 키는 "체험하기"
+///    버튼만 붙이므로(`frontend/src/page/public/ui/ComplimentaryButton.tsx`)
+///    그 경로로 캡처한 골든을 쓰면 "예상치 못한 추가"로 잡힌다.
+/// 6. 로그인 경로(`/api/v1/auth/login`)에는 숫자 세그먼트가 없으므로
 ///    `--path-template` 유무가 이 골든에는 영향을 주지 않는다.
-/// 6. 위가 맞으면 `skip: true`와 이름 접미사만 떼면 된다 —
-///    **본문은 그대로 둔다.** `userId`·`password`는 `kMaskedKeys`라
-///    더미 값(`'testuser'`/`'password1234'`)을 그대로 둬도 통과한다.
-const String kGoldenPending = '골든 픽스처 없음 — Task 4 Step 7(HAR 캡처) 대기';
 
 void main() {
   group('SignInPage', () {
@@ -128,9 +131,7 @@ void main() {
       expect(find.text('아이디 또는 비밀번호가 일치하지 않습니다.'), findsOneWidget);
     });
 
-    testWidgets('로그인 요청이 웹과 동일한 형태로 나간다 (패리티) — 보류: $kGoldenPending', (
-      tester,
-    ) async {
+    testWidgets('로그인 요청이 웹과 동일한 형태로 나간다 (패리티)', (tester) async {
       await tester.pumpWidget(wrap());
 
       await tester.enterText(find.byType(TextField).first, 'testuser');
@@ -142,10 +143,9 @@ void main() {
       // 이 한 줄이 검증 루프 3의 실제 적용 지점이며,
       // Phase 1~8의 모든 화면이 같은 방식으로 검증된다.
       expectParity('login', capture.captured);
-    }, skip: true);
+    });
 
-    testWidgets('잘못된 경로로 요청하면 패리티가 실패한다 (하네스 자체 검증) '
-        '— 보류: $kGoldenPending', (tester) async {
+    testWidgets('잘못된 경로로 요청하면 패리티가 실패한다 (하네스 자체 검증)', (tester) async {
       // 하네스가 실제로 불일치를 잡는지 확인한다.
       // "통과했다"가 아니라 "실패를 잡는다"가 검증의 근거다.
       //
@@ -172,7 +172,7 @@ void main() {
           ),
         ),
       );
-    }, skip: true);
+    });
   });
 }
 

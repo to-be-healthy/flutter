@@ -13,6 +13,37 @@
 HAR을 버리고 골든만 남기면 그 경로가 사라지고, **모든 후속 규칙 변경이
 사람의 재캡처**가 된다. 캡처는 브라우저를 열어 실제로 로그인해야 하는 수동 작업이다.
 
+## 화면 하나에 HAR 하나
+
+골든은 **그 화면이 스스로 발생시키는 요청**과 대조된다. 로그인 성공 후
+리다이렉트된 홈이 쏘는 요청까지 한 HAR에 담으면, 로그인 화면 테스트가
+자기가 보내지도 않는 요청 3건을 "누락"으로 잡는다. 그래서 캡처를 흐름별로
+쪼개 둔다.
+
+| 파일 | 내용 | 쓰는 곳 |
+|------|------|---------|
+| `login.har` | `POST /api/v1/auth/login` 1건 | `login` 골든 (Task 9) |
+| `home-student.har` | 로그인 직후 홈이 쏘는 GET 3건 (`members/trainer-mapping`·`home/student`·`notification/red-dot`) | Phase 3 홈 화면 |
+| `login-complimentary.har` | "체험하기" 경로 로그인 + 위 GET 3건 | **골든 생성 금지** (아래) |
+
+### `login-complimentary.har`를 `login` 골든으로 쓰지 마라
+
+"체험하기" 버튼(`frontend/src/page/public/ui/ComplimentaryButton.tsx`)만
+본문에 `complimentaryLogin: true`를 붙인다. 폼 로그인
+(`frontend/src/feature/auth/ui/SignInForm.tsx`)은 그 키를 **보내지 않는다**.
+이 HAR로 골든을 만들면 Flutter `SignInPage`가 보내지 않는 키가 골든에 남아
+`body.complimentaryLogin: 누락`으로 떨어진다. 보존하는 이유는 두 경로의
+차이를 증거로 남기기 위해서다.
+
+## 캡처 계정
+
+`frontend/src/page/public/ui/ComplimentaryButton.tsx`의 상수에 박힌 **공개 체험
+계정**을 쓴다. 개인 계정이 아니므로 재캡처에 그대로 써도 된다. 값을 여기 옮겨 적지
+않는 이유는 비밀이라서가 아니라, 추적되는 파일에 자격증명 쌍이 들어가면 push
+protection·gitleaks가 잡기 때문이다 — 원본 위치만 가리킨다.
+
+그래도 HAR에는 발급된 실토큰이 남으므로 gitignore는 유지한다.
+
 ## 변환
 
 ```bash
