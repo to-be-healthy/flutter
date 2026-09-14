@@ -1,8 +1,8 @@
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/network/server_message.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
@@ -124,7 +124,7 @@ class _SignInPageState extends State<SignInPage> {
       // 보냈는데 계정이 TRAINER면 서버 쪽이 옳다.
       await AuthScope.read(context).signIn(response);
     } catch (e) {
-      error = _serverMessage(e) ?? '문제가 발생했습니다.';
+      error = serverMessage(e) ?? '문제가 발생했습니다.';
     }
 
     // `await` 뒤에는 화면이 이미 dispose됐을 수 있다(로그인이 성공하면
@@ -141,24 +141,6 @@ class _SignInPageState extends State<SignInPage> {
       _isSubmitting = false;
       _submitError = error;
     });
-  }
-
-  /// 웹 SignInForm의 `error.response?.data?.message ?? '문제가 발생했습니다.'` 대응.
-  /// 백엔드 응답은 `{status, message, data}` envelope라 실패 시에도 `message`가 온다.
-  ///
-  /// 화면이 늘어나면 `core/network`의 공용 헬퍼로 올린다. 사용처가 두 곳
-  /// (여기와 `OnboardingPage`의 체험하기)인 지금은 아직 이르다 — 세 번째가
-  /// 생기면 올린다.
-  String? _serverMessage(Object error) {
-    if (error is! DioException) {
-      return null;
-    }
-    final data = error.response?.data;
-    if (data is! Map) {
-      return null;
-    }
-    final message = data['message'];
-    return message is String ? message : null;
   }
 
   @override

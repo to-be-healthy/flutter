@@ -1,8 +1,8 @@
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/network/server_message.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_radius.dart';
@@ -82,7 +82,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
       // `router.replace(`/${data.memberType}`)`에 해당하는 자리다.
       await AuthScope.read(context).signIn(response);
     } catch (e) {
-      error = _serverMessage(e) ?? '문제가 발생했습니다.';
+      error = serverMessage(e) ?? '문제가 발생했습니다.';
     }
 
     // 성공해도 `_isSubmitting`을 되돌린다 — 이동하지 않는 경우에 링크가
@@ -94,19 +94,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
       _isSubmitting = false;
       _submitError = error;
     });
-  }
-
-  /// 웹 `error.response?.data?.message ?? '문제가 발생했습니다.'` 대응.
-  String? _serverMessage(Object error) {
-    if (error is! DioException) {
-      return null;
-    }
-    final data = error.response?.data;
-    if (data is! Map) {
-      return null;
-    }
-    final message = data['message'];
-    return message is String ? message : null;
   }
 
   @override
