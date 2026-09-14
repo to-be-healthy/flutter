@@ -23,11 +23,13 @@ import '../harness/request_capture.dart';
 ///    `kMaskedKeys`에 없어 **값까지** 대조되는데, 아래 테스트는 `wrap()`
 ///    기본값(`'STUDENT'`)으로 요청한다. 트레이너 계정으로 캡처했다면
 ///    골든을 다시 뜨거나 `wrap(memberType: 'TRAINER')`로 맞춰야 한다.
-/// 3. `headers.content-type`이 **값까지** 대조된다. dio는 `DioClient`의
-///    `BaseOptions.contentType`대로 `application/json`을 보낸다. 골든(웹
-///    HAR)이 `application/json;charset=UTF-8`이면 여기서 차이가 뜬다 —
-///    그건 하네스의 오탐이 아니라 실제 차이이므로 **`DioClient`를 웹에
-///    맞춰라.** allowlist를 좁히거나 단언을 지우는 것은 답이 아니다.
+/// 3. `headers.content-type`이 **값까지** 대조된다. 로그인은 본문 있는
+///    POST라 dio의 `ImplyContentTypeInterceptor`가 `application/json`을
+///    붙인다(`DioClient`는 전역 `contentType`을 지정하지 않는다 — 본문 없는
+///    GET에까지 붙어 웹과 어긋나기 때문). 골든(웹 HAR)이
+///    `application/json;charset=UTF-8`이면 여기서 차이가 뜬다 — 그건
+///    하네스의 오탐이 아니라 실제 차이이므로 **요청 쪽을 웹에 맞춰라.**
+///    allowlist를 좁히거나 단언을 지우는 것은 답이 아니다.
 /// 4. `Authorization`은 양쪽 모두 없어야 한다. 로그인은 공개 경로이고
 ///    이 테스트의 `DioClient.create`는 `storage`를 넘기지 않아
 ///    `AuthInterceptor` 자체가 붙지 않는다.

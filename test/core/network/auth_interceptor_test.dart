@@ -195,6 +195,46 @@ void main() {
   });
 
   group('DioClient.create 조립', () {
+    // 웹(브라우저/axios)은 본문 없는 요청에 Content-Type을 붙이지 않는다.
+    // HTTP 의미론상으로도 본문 없는 요청의 Content-Type은 무엇의 타입인지
+    // 지시할 대상이 없어 무의미하다. 패리티 골든은 웹 HAR에서 오므로, 여기서
+    // 어긋나면 **62개 화면의 모든 GET이 패리티 실패**한다.
+    //
+    // 비교를 느슨하게 해서 덮지 말고 요청 자체를 웹과 맞춘다 —
+    // `test/harness/request_capture.dart`의 allowlist 주석도 같은 취지다.
+    test('본문 없는 GET에는 content-type을 붙이지 않는다 (웹과 동일)', () async {
+      final adapter = _CapturingAdapter();
+      final dio = DioClient.create(baseUrl: 'https://example.test')
+        ..httpClientAdapter = adapter;
+
+      await dio.get<dynamic>('/api/v1/members/me');
+
+      final headers = adapter.lastRequest!.headers;
+      expect(
+        headers.keys.map((k) => k.toLowerCase()),
+        isNot(contains(Headers.contentTypeHeader)),
+        reason: '본문 없는 GET에 content-type이 붙으면 모든 GET 골든이 어긋난다',
+      );
+    });
+
+    test('본문 있는 POST에는 application/json을 붙인다', () async {
+      // GET에서 빼는 것이 "JSON을 안 쓴다"는 뜻이 되면 안 된다. dio의
+      // ImplyContentTypeInterceptor가 data가 있을 때만 추론해 붙인다.
+      final adapter = _CapturingAdapter();
+      final dio = DioClient.create(baseUrl: 'https://example.test')
+        ..httpClientAdapter = adapter;
+
+      await dio.post<dynamic>(
+        AuthApi.signInPath,
+        data: <String, dynamic>{'userId': 'testuser'},
+      );
+
+      expect(
+        adapter.lastRequest!.headers[Headers.contentTypeHeader],
+        Headers.jsonContentType,
+      );
+    });
+
     test('extra 인터셉터도 체인에 들어간다', () async {
       final counter = _CountingInterceptor();
 

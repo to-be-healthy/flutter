@@ -62,11 +62,15 @@ void main() {
       );
     });
 
-    test('본문 없는 GET에도 content-type이 붙는다 (DioClient 전역 설정의 결과)', () async {
+    test('BaseOptions.contentType을 지정하면 본문 없는 GET에도 붙는다', () async {
       // 브라우저는 본문 없는 GET에 content-type을 붙이지 않는다. dio는
       // `BaseOptions.contentType`을 헤더 맵에 그대로 넣으므로 붙는다.
-      // **이 사실을 여기서 고정한다** — 골든 대조에서 GET마다 차이가 나면
-      // 원인이 하네스가 아니라 DioClient임을 이 테스트가 증명한다.
+      //
+      // **이 사실을 고정해 두는 이유**는 `DioClient`가 그래서 전역
+      // `contentType`을 지정하지 않기 때문이다(`dio_client.dart` 주석 참고).
+      // 누가 편의로 다시 지정하면 모든 GET 골든이 어긋나는데, 그 인과가
+      // 여기 남아 있어야 원인을 하네스에서 찾지 않는다. `DioClient` 쪽
+      // 실제 동작은 `auth_interceptor_test.dart`가 단언한다.
       final capture = RequestCapture();
       final dio =
           Dio(

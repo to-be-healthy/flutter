@@ -10,11 +10,14 @@ import 'package:flutter/foundation.dart';
 /// **`tool/har_to_golden.py`의 `CAPTURED_HEADERS`와 반드시 같게 유지할 것.**
 /// `har_to_golden_test.py`의 drift 가드가 두 집합을 대조한다.
 ///
-/// 알려진 결과 하나: `DioClient`가 `BaseOptions.contentType`을 전역으로
-/// 지정하므로 **본문 없는 GET에도 `content-type`이 붙는다**(브라우저는 붙이지
-/// 않는다). 첫 골든 대조에서 GET마다 `headers.content-type: 예상치 못한 추가`가
-/// 뜨면, 그건 하네스의 오탐이 아니라 실제 차이다 — allowlist를 좁히지 말고
-/// `DioClient`를 웹과 맞춰라.
+/// 골든 대조에서 `headers.content-type` 차이가 뜨면 그건 하네스의 오탐이
+/// 아니라 **실제 차이다.** allowlist를 좁히거나 단언을 지워서 덮지 말고
+/// 요청 자체를 웹과 맞춰라.
+///
+/// 선례: `DioClient`가 `BaseOptions.contentType`을 전역 지정해 **본문 없는
+/// GET에도 `content-type`이 붙던** 문제가 이 규칙대로 처리됐다 — 비교를
+/// 느슨하게 하는 대신 전역 지정을 제거해, dio가 `data`가 있을 때만 타입을
+/// 붙이도록(=웹과 같도록) 고쳤다.
 const Set<String> kCapturedHeaders = {'content-type', 'authorization'};
 
 /// 값이 아니라 **존재만** 비교하는 헤더(`kMaskedKeys`와 같은 규칙).
