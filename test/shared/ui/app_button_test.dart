@@ -115,6 +115,69 @@ void main() {
       expect(tapped, 0);
     });
 
+    testWidgets('스크린리더에 버튼·활성 상태·라벨을 노출한다', (tester) async {
+      // GestureDetector + Container + Text만으로는 TalkBack/VoiceOver가
+      // "버튼"임을 알리지 못하고 비활성 상태도 드러나지 않는다.
+      // 62개 화면이 이 위젯을 복사한다.
+      final handle = tester.ensureSemantics();
+
+      await tester.pumpWidget(_wrap(AppButton(label: '로그인', onPressed: () {})));
+
+      expect(
+        tester.getSemantics(find.byType(AppButton)),
+        matchesSemantics(
+          label: '로그인',
+          isButton: true,
+          hasEnabledState: true,
+          isEnabled: true,
+          // 스크린리더가 두 번 탭해 활성화할 수 있어야 한다. excludeSemantics로
+          // 자식을 접었으므로 Semantics가 직접 onTap을 노출한다.
+          hasTapAction: true,
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('비활성 버튼은 스크린리더에 비활성으로 노출된다', (tester) async {
+      final handle = tester.ensureSemantics();
+
+      await tester.pumpWidget(
+        _wrap(const AppButton(label: '로그인', onPressed: null)),
+      );
+
+      final node = tester.getSemantics(find.byType(AppButton));
+
+      expect(
+        node,
+        matchesSemantics(
+          label: '로그인',
+          isButton: true,
+          hasEnabledState: true,
+          isEnabled: false,
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('isLoading이면 비활성으로 노출된다 (중복 제출 방지와 같은 상태)', (tester) async {
+      final handle = tester.ensureSemantics();
+
+      await tester.pumpWidget(
+        _wrap(AppButton(label: '로그인', onPressed: () {}, isLoading: true)),
+      );
+
+      expect(
+        tester.getSemantics(find.byType(AppButton)),
+        matchesSemantics(
+          label: '로그인',
+          isButton: true,
+          hasEnabledState: true,
+          isEnabled: false,
+        ),
+      );
+      handle.dispose();
+    });
+
     testWidgets('AppButton이 둘 이상이어도 label로 각각의 배경을 찾을 수 있다', (tester) async {
       await tester.pumpWidget(
         _wrap(

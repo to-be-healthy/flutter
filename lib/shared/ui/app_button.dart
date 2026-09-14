@@ -69,33 +69,48 @@ class AppButton extends StatelessWidget {
       AppButtonVariant.ghost => colors.gray600,
     };
 
-    return GestureDetector(
+    // 스크린리더 노출. GestureDetector + Container + Text만으로는
+    // TalkBack/VoiceOver가 "버튼"임을 알리지 못하고 비활성도 드러나지 않는다.
+    //
+    // `excludeSemantics`로 자식(Text)의 중복 라벨 노드를 접고, 그 대신
+    // `onTap`을 여기서 직접 노출한다 — 자식을 통째로 접으면 GestureDetector가
+    // 만들던 tap 액션까지 사라져 스크린리더로는 누를 수 없는 버튼이 된다.
+    return Semantics(
+      button: true,
+      enabled: isEnabled,
+      label: label,
       onTap: isEnabled ? onPressed : null,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        key: backgroundKeyFor(label),
-        width: double.infinity,
-        padding: EdgeInsets.symmetric(vertical: spacing.s6),
-        decoration: BoxDecoration(
-          color: background,
-          borderRadius: BorderRadius.circular(radius.m),
-        ),
-        alignment: Alignment.center,
-        child: isLoading
-            ? SizedBox(
-                width: spacing.s7,
-                height: spacing.s7,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(foreground),
+      excludeSemantics: true,
+      child: GestureDetector(
+        onTap: isEnabled ? onPressed : null,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          key: backgroundKeyFor(label),
+          width: double.infinity,
+          padding: EdgeInsets.symmetric(vertical: spacing.s6),
+          decoration: BoxDecoration(
+            color: background,
+            borderRadius: BorderRadius.circular(radius.m),
+          ),
+          alignment: Alignment.center,
+          child: isLoading
+              ? SizedBox(
+                  width: spacing.s7,
+                  height: spacing.s7,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(foreground),
+                  ),
+                )
+              : Text(
+                  label,
+                  // 웹 `button.tsx` 사용처가 붙이는 `Typography.TITLE_1_SEMIBOLD`
+                  // (16px/140% semibold). bold(`title1`)가 아니다.
+                  style: AppTypography.title1SemiBold.copyWith(
+                    color: foreground,
+                  ),
                 ),
-              )
-            : Text(
-                label,
-                // 웹 `button.tsx` 사용처가 붙이는 `Typography.TITLE_1_SEMIBOLD`
-                // (16px/140% semibold). bold(`title1`)가 아니다.
-                style: AppTypography.title1SemiBold.copyWith(color: foreground),
-              ),
+        ),
       ),
     );
   }

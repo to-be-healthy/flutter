@@ -211,6 +211,39 @@ void main() {
       );
     });
 
+    testWidgets('헤더의 선언 높이와 실제 렌더 높이가 같다', (tester) async {
+      // `preferredSize`만 바꾸고 `AppBar.toolbarHeight`를 넘기지 않으면 실제
+      // 높이는 Material 기본값 `kToolbarHeight`로 남는다. 지금은 둘 다 56이라
+      // 우연히 일치하지만, 상수를 바꾸는 순간 선언과 렌더가 조용히 어긋난다.
+      await tester.pumpWidget(
+        _wrap(
+          const AppLayout(
+            header: AppLayoutHeader(title: '로그인'),
+            contents: Text('본문'),
+          ),
+        ),
+      );
+
+      // 박스 크기는 Scaffold가 `preferredSize`로 잡아주므로 선언만 따라온다.
+      // 실제로 어긋나는 건 **툴바 내용의 배치**다: `toolbarHeight`를 넘기지
+      // 않으면 내용은 `kToolbarHeight`(56) 기준으로 놓여, 선언 높이가 56이
+      // 아닌 순간 제목이 박스 가운데에서 벗어난다.
+      expect(
+        tester.getSize(find.byType(AppBar)).height,
+        AppLayoutHeader.height,
+        reason: 'preferredSize가 선언 높이를 그대로 전달해야 한다',
+      );
+
+      final titleRect = tester.getRect(find.text('로그인'));
+      expect(
+        titleRect.center.dy,
+        moreOrLessEquals(AppLayoutHeader.height / 2, epsilon: 0.5),
+        reason:
+            '제목이 선언 높이의 세로 가운데에 놓여야 한다 '
+            '(toolbarHeight 미전달이면 kToolbarHeight 기준으로 밀린다)',
+      );
+    });
+
     testWidgets('canPop이 true면(하위 화면) 뒤로가기 버튼을 보여준다', (tester) async {
       await tester.pumpWidget(
         MaterialApp(

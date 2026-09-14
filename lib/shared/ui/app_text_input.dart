@@ -15,7 +15,7 @@ import '../../core/theme/app_typography.dart';
 /// 에러 테두리는 `InputDecoration.errorBorder`(Flutter의 `isError` 플래그가
 /// 켜져야만 렌더되는데, 이 위젯은 `errorText`를 `InputDecoration`에 넘기지
 /// 않으므로 그 플래그가 절대 켜지지 않아 도달 불가한 죽은 코드였다) 대신
-/// `hasError`로 `enabledBorder`/`border`/`focusedBorder`의 색을 직접
+/// `hasError`로 `enabledBorder`/`focusedBorder`의 색을 직접
 /// 선택한다. 웹 `SignInForm.tsx`도 테두리 색 전환 + 별도 에러 텍스트를
 /// 함께 쓰므로, 에러 메시지는 Flutter가 자동으로 붙이는 캡션이 아니라
 /// 아래의 커스텀 `Text`로 그린다.
@@ -69,12 +69,11 @@ class AppTextInput extends StatelessWidget {
             ),
             filled: true,
             fillColor: colors.gray100,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(radius.m),
-              borderSide: hasError
-                  ? BorderSide(color: colors.point)
-                  : BorderSide.none,
-            ),
+            // `border:`는 두지 않는다 — `enabledBorder`가 항상 이겨 도달
+            // 불가한 죽은 분기이고, 62개 화면이 이 위젯을 복사한다.
+            // (부작용: 나중에 `enabled: false`를 붙이면 `disabledBorder`가
+            // Material 기본 `UnderlineInputBorder`로 떨어지므로, 비활성
+            // 입력을 추가할 때 `disabledBorder`를 명시할 것.)
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(radius.m),
               borderSide: hasError

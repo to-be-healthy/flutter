@@ -54,6 +54,31 @@ void main() {
       expect(field.decoration!.errorText, isNull);
     });
 
+    testWidgets('도달 불가한 그림자 border를 두지 않는다', (tester) async {
+      // `enabledBorder`가 항상 이기므로 `border:`는 절대 렌더되지 않는다.
+      // 값이 같아 지금은 버그가 아니지만, 이 위젯은 62개 화면이 복사할
+      // 템플릿이라 죽은 분기가 복사된 뒤 갈라진다 — 직전 라운드가 제거한
+      // `errorBorder`와 같은 종류의 재도입이었다.
+      //
+      // 부작용 하나를 여기 기록한다: `border:`가 없으므로 나중에 누가
+      // `enabled: false`를 붙이면 `disabledBorder`가 Material 기본값
+      // (`UnderlineInputBorder`)로 떨어진다. 비활성 입력을 추가할 때는
+      // `disabledBorder`를 명시할 것.
+      for (final errorText in <String?>[null, '이미 사용 중인 아이디입니다']) {
+        await tester.pumpWidget(
+          _wrap(AppTextInput(label: '아이디', errorText: errorText)),
+        );
+
+        final field = tester.widget<TextField>(find.byType(TextField));
+
+        expect(
+          field.decoration!.border,
+          isNull,
+          reason: 'errorText=$errorText 에서 도달 불가한 border가 남아 있다',
+        );
+      }
+    });
+
     testWidgets('에러 메시지를 별도 텍스트로 보여준다', (tester) async {
       await tester.pumpWidget(
         _wrap(const AppTextInput(label: '아이디', errorText: '이미 사용 중인 아이디입니다')),

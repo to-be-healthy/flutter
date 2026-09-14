@@ -102,6 +102,11 @@ class AppLayoutHeader extends StatelessWidget implements PreferredSizeWidget {
     final colors = theme.extension<AppColors>()!;
 
     return AppBar(
+      // `preferredSize`만으로는 Scaffold가 잡아주는 **박스**만 커지고 툴바
+      // 내용은 Material 기본값 `kToolbarHeight`(56) 기준으로 놓인다. 지금은
+      // 우연히 둘 다 56이라 일치하지만, `height`를 바꾸는 순간 선언과 렌더가
+      // 조용히 어긋난다(제목이 가운데를 벗어난다). 둘을 같은 상수로 묶는다.
+      toolbarHeight: height,
       // 웹 Header 자체는 고유 배경이 없고 부모(AppLayout, 기본 gray100 또는
       // 화면별 backgroundColor override)를 그대로 드러낸다. AppBar는
       // Scaffold와 별개로 자기 자신을 불투명하게 칠하는 Material이라
