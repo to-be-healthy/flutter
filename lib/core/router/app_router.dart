@@ -2,6 +2,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../entity/auth/api/auth_api.dart';
 import '../../entity/auth/model/auth_state.dart';
+import '../../page/public/find_id_page.dart';
+import '../../page/public/find_password_page.dart';
 import '../../page/public/not_implemented_page.dart';
 import '../../page/public/onboarding_page.dart';
 import '../../page/public/sign_in_page.dart';
@@ -100,13 +102,11 @@ GoRouter createRouter({
       ),
       GoRoute(
         path: AppRoutes.findId,
-        builder: (context, state) =>
-            const NotImplementedPage(title: '아이디 찾기', webRoute: '/find/id'),
+        builder: (context, state) => FindIdPage(authApi: authApi),
       ),
       GoRoute(
         path: AppRoutes.findPassword,
-        builder: (context, state) =>
-            const NotImplementedPage(title: '비밀번호 찾기', webRoute: '/find/pw'),
+        builder: (context, state) => FindPasswordPage(authApi: authApi),
       ),
       GoRoute(
         path: AppRoutes.studentHome,

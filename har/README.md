@@ -25,6 +25,32 @@ HAR을 버리고 골든만 남기면 그 경로가 사라지고, **모든 후속
 | `login.har` | 폼 로그인 `POST /api/v1/auth/login` 1건 | `login` | `SignInPage` |
 | `login-complimentary.har` | "체험하기" `POST /api/v1/auth/login` 1건 | `login-complimentary` | `OnboardingPage` |
 | `home-student.har` | 로그인 직후 홈이 쏘는 GET 3건 (`members/trainer-mapping`·`home/student`·`notification/red-dot`) | (아직 없음) | Phase 3 홈 화면 |
+| `find-id.har` | 아이디 찾기 `POST /api/v1/auth/find/user-id` 1건 | `find-id` | `FindIdPage` |
+| `find-password.har` | 비밀번호 찾기 `POST /api/v1/auth/find/password` 1건 | `find-password` | `FindPasswordPage` |
+
+### 두 찾기 골든도 바꿔 쓰지 마라
+
+본문이 **완전히 같다**(`{name, email}`, 키 순서까지). 다른 것은 경로뿐이다 —
+`find/user-id` vs `find/password`. 바꿔 쓰면 경로 불일치로 떨어지며,
+`find_password_page_test.dart`가 그 사실을 테스트로 직접 확인한다.
+
+### 찾기 화면 재캡처 시 — 반드시 가짜 계정으로
+
+**`POST /api/v1/auth/find/password`는 실존 회원의 비밀번호를 실제로
+초기화하고 메일을 보낸다.** 캡처는 RFC 2606 예약 도메인으로만 하라.
+
+- 이름 `홍길동` / 이메일 `parity-harness@example.com`
+- 서버가 **HTTP 404 + `{"message":"회원이 존재하지 않습니다.","code":"400"}`**를
+  돌려주는 것이 정상이다. 골든은 요청의 모양만 쓰므로 응답 실패는 무관하다.
+- 성공 응답이 나오면 가정이 틀린 것이다 — 중단하고 값을 다시 확인하라.
+
+`name`은 `MASKED_KEYS`에 **없어 값까지 대조된다.** 다른 이름으로 재캡처하면
+`find_id_page_test.dart`가 먼저 깨진다. 그때 테스트를 고치지 말고 같은 이름으로
+다시 뜨거나 양쪽을 함께 바꿔라.
+
+두 요청 모두 `authorization` 헤더가 **없다**(실측). 웹은 토큰 없는 `api`
+인스턴스를 쓰고(`mutations.ts`), 앱은 `AuthInterceptor._publicPaths`의
+`/auth/find/`가 같은 일을 한다.
 
 ### 두 로그인 골든을 바꿔 쓰지 마라
 
@@ -37,7 +63,7 @@ HAR을 버리고 골든만 남기면 그 경로가 사라지고, **모든 후속
 떨어진다. 두 방향 모두 뮤테이션으로 확인했다 — 이 한 키가 두 골든을
 구별하는 전부이자, 골든이 공허하게 통과하지 않는다는 증거다.
 
-## 캡처 계정
+## 캡처 계정 (로그인이 필요한 화면)
 
 `frontend/src/page/public/ui/ComplimentaryButton.tsx`의 상수에 박힌 **공개 체험
 계정**을 쓴다. 개인 계정이 아니므로 재캡처에 그대로 써도 된다. 값을 여기 옮겨 적지

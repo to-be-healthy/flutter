@@ -5,6 +5,7 @@ import 'package:geonganghaejim/core/router/app_router.dart';
 import 'package:geonganghaejim/entity/auth/model/auth_user.dart';
 import 'package:geonganghaejim/shared/ui/app_button.dart';
 import 'package:geonganghaejim/shared/ui/app_text_input.dart';
+import 'package:geonganghaejim/widget/app_layout.dart';
 
 import 'support/auth_fakes.dart';
 
@@ -218,6 +219,62 @@ void main() {
 
       expect(find.text('아이디 찾기'), findsOneWidget);
       expect(find.text('트레이너로 시작'), findsNothing);
+    });
+
+    testWidgets('로그인 화면에서 아이디 찾기로 갔다가 닫으면 역할을 유지한 채 돌아온다', (tester) async {
+      // 로그인 화면이 자리표시자로 보내던 링크가 실제 화면으로 닫혔다.
+      // 돌아왔을 때 `?type=trainer`가 살아 있어야 한다 — 온보딩으로
+      // 되돌리면 사용자가 역할을 다시 고르게 된다.
+      await tester.pumpWidget(
+        _app(initialLocation: '${AppRoutes.signIn}?type=trainer'),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('트레이너 로그인'), findsOneWidget);
+
+      await tester.tap(find.text('아이디 찾기'));
+      await tester.pumpAndSettle();
+      expect(find.text('이름을 입력해주세요.'), findsOneWidget);
+      // 스택이 있는 상태에서도 Material 기본 뒤로가기가 끼어들면 안 된다.
+      // 웹 헤더에는 X 하나뿐이다.
+      expect(find.byType(BackButton), findsNothing);
+
+      await tester.tap(find.byKey(AppLayoutHeader.closeButtonKey));
+      await tester.pumpAndSettle();
+
+      expect(find.text('트레이너 로그인'), findsOneWidget);
+      expect(find.text('이름을 입력해주세요.'), findsNothing);
+    });
+
+    testWidgets('비밀번호 찾기도 같은 왕복을 한다', (tester) async {
+      await tester.pumpWidget(
+        _app(initialLocation: '${AppRoutes.signIn}?type=student'),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('비밀번호 찾기'));
+      await tester.pumpAndSettle();
+      expect(find.text('가입하신 이메일 주소로 초기화된 비밀번호를 보내드립니다.'), findsOneWidget);
+
+      await tester.tap(find.byKey(AppLayoutHeader.closeButtonKey));
+      await tester.pumpAndSettle();
+
+      expect(find.text('회원 로그인'), findsOneWidget);
+    });
+
+    testWidgets('딥링크로 바로 연 찾기 화면은 닫으면 온보딩으로 간다', (tester) async {
+      // 돌아갈 스택이 없는 경우다(푸시 알림·외부 링크). `/sign-in`으로
+      // 보내지 않는 이유는 그 화면이 `?type=`을 필수로 요구하는데 이 경로엔
+      // 역할 정보가 없기 때문이다 — 타입 없이 보내면 라우터가 온보딩으로
+      // 다시 튕겨 한 단계를 헛돈다.
+      await tester.pumpWidget(_app(initialLocation: AppRoutes.findPassword));
+      await tester.pumpAndSettle();
+      expect(find.text('비밀번호 찾기'), findsOneWidget);
+
+      await tester.tap(find.byKey(AppLayoutHeader.closeButtonKey));
+      await tester.pumpAndSettle();
+
+      expect(find.text('트레이너로 시작'), findsOneWidget);
+      expect(find.text('회원으로 시작'), findsOneWidget);
     });
 
     testWidgets('리다이렉트가 연쇄돼도 한도 안에서 끝난다', (tester) async {

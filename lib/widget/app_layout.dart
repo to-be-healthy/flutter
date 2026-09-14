@@ -100,7 +100,7 @@ class AppLayout extends StatelessWidget {
 /// 가운데 제목"을 반복 구현하고 있어, Flutter에서는 그 반복 형태를 표준
 /// 헤더로 승격했다.
 class AppLayoutHeader extends StatelessWidget implements PreferredSizeWidget {
-  const AppLayoutHeader({this.title, this.onBack, super.key});
+  const AppLayoutHeader({this.title, this.onBack, this.onClose, super.key});
 
   /// 없으면 제목 없는 헤더가 된다. 웹 온보딩의 `<Layout.Header />`(자식 없음)
   /// 처럼 **56px 자리만 잡는** 용도와, 뒤로가기만 있는 헤더에 쓴다.
@@ -110,6 +110,15 @@ class AppLayoutHeader extends StatelessWidget implements PreferredSizeWidget {
   /// 로그인 수단 선택 화면은 `router.back()`이다. 그래서 기본 동작(pop)에
   /// 맡기지 않고 화면이 넘긴다.
   final VoidCallback? onBack;
+
+  /// 오른쪽 닫기(X). 웹 `FindIdPage`/`FindPasswordPage`의
+  /// `<Layout.Header className='... justify-end'>` + `IconClose` 대응.
+  ///
+  /// **닫기가 있으면 뒤로가기를 자동으로 띄우지 않는다.** 웹의 그 화면들은
+  /// 헤더에 X 하나만 두고, 둘 다 보이면 같은 일을 하는 버튼이 둘이 된다.
+  /// (`onBack`을 명시로 함께 넘기면 둘 다 나온다 — 그런 화면이 생기면
+  /// 그때 웹 렌더를 보고 맞춘다.)
+  final VoidCallback? onClose;
 
   /// 웹 `Layout.Header`의 `h-[56px]`(Tailwind 임의값 문법) 대응.
   ///
@@ -121,6 +130,17 @@ class AppLayoutHeader extends StatelessWidget implements PreferredSizeWidget {
 
   /// 웹 `back.svg`의 고유 크기(`width="20" height="20"`).
   static const double backIconSize = 20;
+
+  /// 웹 `<IconClose width={14} height={14} />`. `close.svg`의 고유 크기와도 같다.
+  static const double closeIconSize = 14;
+
+  /// 닫기 버튼에 붙는 키.
+  ///
+  /// 라우터를 끼운 테스트에서는 **직전 화면이 트리에 그대로 남아 있어**
+  /// `find.byType(IconButton)`이 아래 화면의 뒤로가기까지 함께 잡는다.
+  /// 위 화면의 X만 지목하려면 식별자가 필요하다
+  /// (`AppButton.backgroundKeyFor`와 같은 이유).
+  static const Key closeButtonKey = ValueKey('AppLayoutHeader.close');
 
   @override
   Size get preferredSize => const Size.fromHeight(height);
@@ -158,10 +178,17 @@ class AppLayoutHeader extends StatelessWidget implements PreferredSizeWidget {
       // 없어 0으로 껐다(AppButton의 strokeWidth: 2와 같은 종류의 예외).
       elevation: 0,
       centerTitle: true,
+      // Material 기본 뒤로가기를 끼워 넣지 못하게 막는다. 아래 `leading`
+      // 규칙이 유일한 판단 근거여야 한다 — 기본값(true)으로 두면 `leading`이
+      // null인 모든 경우에 AppBar가 제 판단으로 뒤로가기를 넣어, 웹에 없는
+      // 버튼이 조용히 생긴다(닫기만 있는 화면이 정확히 그 경우다).
+      automaticallyImplyLeading: false,
       // `onBack`이 있으면 스택과 무관하게 보인다. 웹 로그인 화면의 뒤로가기는
       // `router.push('/')`라 히스토리가 없어도 늘 떠 있다 — `canPop()`만 보면
       // 첫 화면으로 진입했을 때 사라진다.
-      leading: (onBack != null || Navigator.of(context).canPop())
+      leading:
+          (onBack != null ||
+              (onClose == null && Navigator.of(context).canPop()))
           ? IconButton(
               // 웹 `IconBack`(`back.svg`) 자산을 그대로 쓴다. Material
               // `Icons.arrow_back_ios_new`는 자형이 다르다. 색을 덮지 않는
@@ -175,6 +202,21 @@ class AppLayoutHeader extends StatelessWidget implements PreferredSizeWidget {
               onPressed: onBack ?? () => Navigator.of(context).pop(),
             )
           : null,
+      actions: onClose == null
+          ? null
+          : [
+              IconButton(
+                key: closeButtonKey,
+                // 웹 `close.svg`. 색을 덮지 않는 이유는 뒤로가기와 같다 —
+                // 자산이 `stroke="black"`으로 고정돼 있다.
+                icon: SvgPicture.asset(
+                  'assets/images/close.svg',
+                  width: closeIconSize,
+                  height: closeIconSize,
+                ),
+                onPressed: onClose,
+              ),
+            ],
       title: title == null
           ? null
           : Text(
