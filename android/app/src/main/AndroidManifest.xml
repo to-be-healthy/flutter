@@ -1,7 +1,19 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Auto Backup을 끈다.
+
+         flutter_secure_storage(Android)는 값을 AES-GCM으로 암호화해
+         SharedPreferences에 넣고, 그 키를 KeyStore의 RSA-OAEP로 래핑한다.
+         Auto Backup은 **암호화된 prefs는 백업·복원하지만 KeyStore 키는
+         복원하지 않는다** — 기기 복원 후 첫 읽기에서 BadPaddingException이
+         나는 알려진 실패다. 미설정이면 플랫폼 기본값으로 켜져 있으므로,
+         토큰 저장소가 실제로 배선되기 전에 명시적으로 끈다.
+
+         켜야 할 일이 생기면 SecureTokenStorage 키를
+         backup_rules.xml 에서 제외하는 쪽이 먼저다. -->
     <application
         android:label="geonganghaejim"
         android:name="${applicationName}"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"
