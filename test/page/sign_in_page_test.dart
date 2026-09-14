@@ -16,12 +16,24 @@ import '../harness/request_capture.dart';
 /// 이름에 붙여 `flutter test` 출력에 드러낸다.
 ///
 /// 재개 조건 — `skip`만 떼면 되는 게 아니다:
-/// 1. `test/fixtures/requests/login.json`이 존재할 것.
+/// 1. `test/fixtures/requests/login.json`이 존재할 것. **`headers` 키를 담은
+///    현재 형식이어야 한다** — `loadGolden`이 옛 형식(headers 없음)을 거부한다.
+///    `tool/har_to_golden.py`로 변환하면 자동으로 들어간다.
 /// 2. 그 골든이 **STUDENT 로그인**으로 캡처돼 있을 것. `memberType`은
 ///    `kMaskedKeys`에 없어 **값까지** 대조되는데, 아래 테스트는 `wrap()`
 ///    기본값(`'STUDENT'`)으로 요청한다. 트레이너 계정으로 캡처했다면
 ///    골든을 다시 뜨거나 `wrap(memberType: 'TRAINER')`로 맞춰야 한다.
-/// 3. 그 두 가지가 맞으면 `skip: true`와 이름 접미사만 떼면 된다 —
+/// 3. `headers.content-type`이 **값까지** 대조된다. dio는 `DioClient`의
+///    `BaseOptions.contentType`대로 `application/json`을 보낸다. 골든(웹
+///    HAR)이 `application/json;charset=UTF-8`이면 여기서 차이가 뜬다 —
+///    그건 하네스의 오탐이 아니라 실제 차이이므로 **`DioClient`를 웹에
+///    맞춰라.** allowlist를 좁히거나 단언을 지우는 것은 답이 아니다.
+/// 4. `Authorization`은 양쪽 모두 없어야 한다. 로그인은 공개 경로이고
+///    이 테스트의 `DioClient.create`는 `storage`를 넘기지 않아
+///    `AuthInterceptor` 자체가 붙지 않는다.
+/// 5. 로그인 경로(`/api/v1/auth/login`)에는 숫자 세그먼트가 없으므로
+///    `--path-template` 유무가 이 골든에는 영향을 주지 않는다.
+/// 6. 위가 맞으면 `skip: true`와 이름 접미사만 떼면 된다 —
 ///    **본문은 그대로 둔다.** `userId`·`password`는 `kMaskedKeys`라
 ///    더미 값(`'testuser'`/`'password1234'`)을 그대로 둬도 통과한다.
 const String kGoldenPending = '골든 픽스처 없음 — Task 4 Step 7(HAR 캡처) 대기';
@@ -134,6 +146,9 @@ void main() {
         '— 보류: $kGoldenPending', (tester) async {
       // 하네스가 실제로 불일치를 잡는지 확인한다.
       // "통과했다"가 아니라 "실패를 잡는다"가 검증의 근거다.
+      //
+      // `headers`를 넘기지 않는 것도 의도다 — 경로가 맞더라도 골든이 담은
+      // 헤더가 통째로 빠졌으니 어느 쪽이든 `ParityFailure`가 나야 한다.
       final bogus = [
         const CapturedRequest(
           method: 'POST',

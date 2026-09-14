@@ -27,6 +27,29 @@ const Set<String> kMaskedKeys = {
   'state',
 };
 
+/// 골든 경로에서 리소스 id 자리를 대신하는 토큰.
+///
+/// 62개 화면 대부분이 `/api/v1/.../{memberId}`·`{scheduleId}`·
+/// `{lessonId}`를 친다. 골든은 HAR을 뜬 **그 계정의** id를 담으므로
+/// 리터럴로 두면 모든 화면 테스트가 그 id를 하드코딩해야 하고 다른 계정으로
+/// 픽스처를 다시 뜰 수 없다.
+///
+/// **`tool/har_to_golden.py`의 `PATH_ID_PLACEHOLDER`와 반드시 같게 유지할 것.**
+const String kPathIdPlaceholder = '{id}';
+
+/// 자리표시자로 치환할(=자리표시자와 일치할) 세그먼트의 **형태**.
+///
+/// 값이 아니라 형태만 맞춘다 — "아무 값이나 통과"로 두면 `/members/{id}`
+/// 자리에 `/members/me`를 치는 진짜 버그가 통과한다.
+///
+/// 숫자만 치환하는 이유는 백엔드 실측이다: `openapi/api-docs.json`의 경로
+/// 파라미터 64개 중 60개가 `integer(int64)`이고, 나머지 4개
+/// (`status`·`type`·`notificationCategory`)는 문자열 **열거형**이라 값까지
+/// 대조돼야 한다. 숫자 전용 규칙이 그 둘을 정확히 갈라놓는다.
+///
+/// **`tool/har_to_golden.py`의 `PATH_ID_SEGMENT`와 반드시 같은 패턴일 것.**
+final RegExp kPathIdSegment = RegExp(r'^\d+$');
+
 /// 두 요청의 차이를 사람이 읽을 수 있는 문자열 목록으로 반환한다.
 /// 비어 있으면 일치.
 ///
@@ -50,9 +73,19 @@ List<String> diffRequests(
   if (golden.method != actual.method) {
     diffs.add('method: 기대 ${golden.method}, 실제 ${actual.method}');
   }
-  if (golden.path != actual.path) {
-    diffs.add('path: 기대 ${golden.path}, 실제 ${actual.path}');
-  }
+  _diffPath(golden.path, actual.path, diffs);
+
+  // 헤더는 allowlist(`kCapturedHeaders`)만 캡처·저장되므로 여기서는 남은
+  // 것만 비교한다. `kPresenceOnlyHeaders`(authorization)는 마스킹 키와 같은
+  // 규칙 — 존재만 본다. content-type은 값까지 본다.
+  _diffMap(
+    'headers',
+    golden.headers,
+    actual.headers,
+    diffs,
+    kPresenceOnlyHeaders,
+    coerceScalarTypes: false,
+  );
 
   _diffMap(
     'query',
@@ -74,11 +107,65 @@ List<String> diffRequests(
       maskedKeys,
       coerceScalarTypes: false, // 본문은 타입까지 비교한다
     );
+  } else if (goldenBody is List && actualBody is List) {
+    _diffList(
+      'body',
+      goldenBody,
+      actualBody,
+      diffs,
+      maskedKeys,
+      coerceScalarTypes: false,
+    );
   } else {
     _diffLeaf('body', goldenBody, actualBody, diffs, coerceScalarTypes: false);
   }
 
   return diffs;
+}
+
+/// 경로를 세그먼트 단위로 비교한다.
+///
+/// [kPathIdPlaceholder]인 골든 세그먼트는 실제 세그먼트가
+/// [kPathIdSegment] **형태**이기만 하면 일치로 본다. 자리표시자가 없는
+/// 경로에서는 세그먼트 대조가 곧 리터럴 대조라 동작이 달라지지 않는다.
+void _diffPath(String golden, String actual, List<String> diffs) {
+  if (golden == actual) {
+    return;
+  }
+
+  final goldenSegments = golden.split('/');
+  final actualSegments = actual.split('/');
+
+  if (goldenSegments.length == actualSegments.length) {
+    String? mismatch;
+    for (var i = 0; i < goldenSegments.length; i++) {
+      final g = goldenSegments[i];
+      final a = actualSegments[i];
+      if (g == a) {
+        continue;
+      }
+      if (g == kPathIdPlaceholder) {
+        if (kPathIdSegment.hasMatch(a)) {
+          continue;
+        }
+        // 자리표시자 자리인데 형태가 다르다 — 가장 흔한 실수라 따로 짚는다.
+        mismatch = ' ($kPathIdPlaceholder 자리 [$i]에 id 형태가 아닌 \'$a\'가 왔다)';
+        break;
+      }
+      mismatch = ' (세그먼트 [$i]: \'$g\' vs \'$a\')';
+      break;
+    }
+    if (mismatch == null) {
+      return;
+    }
+    diffs.add('path: 기대 $golden, 실제 $actual$mismatch');
+    return;
+  }
+
+  diffs.add(
+    'path: 기대 $golden, 실제 $actual '
+    '(세그먼트 개수 ${goldenSegments.length} vs ${actualSegments.length})',
+  );
 }
 
 /// `jsonEncode`로 값을 정규화한다. 직렬화할 수 없는 타입이면 `null`.
@@ -141,6 +228,21 @@ void _diffMap(
       continue;
     }
 
+    // 리스트도 같은 규칙으로 재귀한다. Python mask()가 리스트 **안쪽 맵까지**
+    // 재귀 마스킹하므로, 리스트를 리프로 보고 jsonEncode로 대조하면 마스킹
+    // 키를 품은 객체 리스트에서 '***' vs 실제값이라는 보장된 오탐이 난다.
+    if (goldenValue is List && actualValue is List) {
+      _diffList(
+        path,
+        goldenValue,
+        actualValue,
+        diffs,
+        maskedKeys,
+        coerceScalarTypes: coerceScalarTypes,
+      );
+      continue;
+    }
+
     _diffLeaf(
       path,
       goldenValue,
@@ -159,8 +261,66 @@ void _diffMap(
   }
 }
 
+/// 리스트를 원소 단위로 비교한다.
+///
+/// 라벨에는 인덱스를 대괄호로 이어 붙인다(`body.items[0].email`) — 어느
+/// 원소가 어긋났는지 모르면 항목이 많은 목록 요청에서 진단이 불가능하다.
+///
+/// 길이가 다르면 원소 비교로 내려가지 않는다. 길이가 어긋난 순간 인덱스가
+/// 밀려 이후 전 원소가 차이로 찍히므로, 진짜 원인(길이) 한 줄만 보고한다.
+void _diffList(
+  String label,
+  List<dynamic> golden,
+  List<dynamic> actual,
+  List<String> diffs,
+  Set<String> maskedKeys, {
+  required bool coerceScalarTypes,
+}) {
+  if (golden.length != actual.length) {
+    diffs.add('$label: 리스트 길이 불일치 (기대 ${golden.length}, 실제 ${actual.length})');
+    return;
+  }
+
+  for (var i = 0; i < golden.length; i++) {
+    final path = '$label[$i]';
+    final goldenValue = golden[i];
+    final actualValue = actual[i];
+
+    if (goldenValue is Map && actualValue is Map) {
+      _diffMap(
+        path,
+        Map<String, dynamic>.from(goldenValue),
+        Map<String, dynamic>.from(actualValue),
+        diffs,
+        maskedKeys,
+        coerceScalarTypes: coerceScalarTypes,
+      );
+      continue;
+    }
+    if (goldenValue is List && actualValue is List) {
+      _diffList(
+        path,
+        goldenValue,
+        actualValue,
+        diffs,
+        maskedKeys,
+        coerceScalarTypes: coerceScalarTypes,
+      );
+      continue;
+    }
+
+    _diffLeaf(
+      path,
+      goldenValue,
+      actualValue,
+      diffs,
+      coerceScalarTypes: coerceScalarTypes,
+    );
+  }
+}
+
 /// 리프 값 하나를 비교한다. `jsonEncode` 대조는 **리프에서만** 한다
-/// (중첩 맵은 [_diffMap]이 재귀로 내려간다).
+/// (중첩 맵·리스트는 [_diffMap]/[_diffList]가 재귀로 내려간다).
 ///
 /// 불일치 메시지에 인코딩 결과와 런타임 타입을 함께 싣는다. `'0'`과 `0`처럼
 /// 표기가 같고 타입만 다른 경우 "기대 0, 실제 0"으로는 원인을 읽을 수 없다.
@@ -199,6 +359,21 @@ List<CapturedRequest> loadGolden(String name) {
     );
   }
   final decoded = jsonDecode(file.readAsStringSync()) as List<dynamic>;
+
+  // `headers`가 없는 골든은 **헤더를 비교하지 않는 골든**이다 — 없는 키는
+  // 대조되지 않으므로 Authorization을 아예 안 붙이는 화면이 조용히 통과한다.
+  // 형식 자체를 거부해 "옛 골든을 그대로 쓰는" 경로를 막는다.
+  for (var i = 0; i < decoded.length; i++) {
+    final entry = decoded[i] as Map<String, dynamic>;
+    if (!entry.containsKey('headers')) {
+      throw StateError(
+        '골든이 옛 형식이다(headers 없음): ${file.path} [$i]\n'
+        'headers 없는 골든은 Authorization·content-type 검증을 통째로 건너뛴다.\n'
+        'tool/har_to_golden.py 로 HAR을 다시 변환해 골든을 생성하라.',
+      );
+    }
+  }
+
   return decoded
       .map((e) => CapturedRequest.fromJson(e as Map<String, dynamic>))
       .toList();

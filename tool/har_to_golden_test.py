@@ -23,6 +23,16 @@ import har_to_golden as h  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DART_MATCHER = REPO_ROOT / 'test' / 'harness' / 'parity_matcher.dart'
+DART_CAPTURE = REPO_ROOT / 'test' / 'harness' / 'request_capture.dart'
+
+
+def dart_set(source, name):
+    """Dart 의 `const Set<String> <name> = {...}` 에서 문자열 리터럴을 뽑는다."""
+    block = re.search(
+        r'const Set<String> %s = \{(.*?)\};' % name, source, re.S
+    )
+    assert block, f'{name} 선언을 찾지 못했다'
+    return set(re.findall(r"'([^']+)'", block.group(1)))
 
 
 def write_har(directory, entries):
@@ -33,10 +43,12 @@ def write_har(directory, entries):
     return str(path)
 
 
-def request(method, url, body=None, mime='application/json'):
+def request(method, url, body=None, mime='application/json', headers=None):
     req = {'method': method, 'url': url}
     if body is not None:
         req['postData'] = {'mimeType': mime, 'text': body}
+    if headers is not None:
+        req['headers'] = [{'name': n, 'value': v} for n, v in headers]
     return {'request': req}
 
 
@@ -214,6 +226,165 @@ class MaskedKeyDriftTest(unittest.TestCase):
             'Dart kMaskedKeys 와 Python MASKED_KEYS 가 어긋났다. '
             '한쪽에만 키를 추가하면 골든에 평문이 남거나 비교가 틀어진다.',
         )
+
+
+class HeaderTest(unittest.TestCase):
+    """allowlist 헤더만, 소문자 키로, authorization 은 마스킹해서 남긴다."""
+
+    def test_allowlist만_남기고_키를_소문자로_만든다(self):
+        picked = h.pick_headers([
+            {'name': 'Content-Type', 'value': 'application/json;charset=UTF-8'},
+            {'name': 'User-Agent', 'value': 'Mozilla/5.0'},
+            {'name': 'Accept-Encoding', 'value': 'gzip'},
+        ])
+        self.assertEqual(
+            picked, {'content-type': 'application/json;charset=UTF-8'}
+        )
+
+    def test_authorization은_값을_마스킹하고_존재만_남긴다(self):
+        # 골든에 실토큰이 평문으로 커밋되면 안 된다.
+        picked = h.pick_headers([
+            {'name': 'authorization', 'value': 'Bearer eyJreal.token'},
+        ])
+        self.assertEqual(picked, {'authorization': '***'})
+
+    def test_같은_헤더가_여러번_오면_첫_값을_쓴다(self):
+        picked = h.pick_headers([
+            {'name': 'Content-Type', 'value': 'first'},
+            {'name': 'content-type', 'value': 'second'},
+        ])
+        self.assertEqual(picked, {'content-type': 'first'})
+
+    def test_헤더가_없으면_빈_맵이다(self):
+        self.assertEqual(h.pick_headers(None), {})
+
+    def test_변환_결과에_headers_키가_항상_있다(self):
+        # Dart loadGolden 이 headers 없는 골든을 거부한다.
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        out, _ = h.convert(write_har(tmp.name, [
+            request('GET', 'https://api.example.com/api/v1/a'),
+            request('POST', 'https://api.example.com/api/v1/b',
+                    body='{}', headers=[('Authorization', 'Bearer t'),
+                                        ('Content-Type', 'application/json')]),
+        ]))
+        self.assertEqual([r['headers'] for r in out],
+                         [{}, {'authorization': '***',
+                               'content-type': 'application/json'}])
+
+
+class PathTemplateTest(unittest.TestCase):
+    """숫자 세그먼트만 자리표시자로 바꾼다 (열거형은 리터럴로 남긴다)."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def convert(self, entries, **kw):
+        return h.convert(write_har(self.tmp.name, entries), **kw)
+
+    def test_숫자_세그먼트를_자리표시자로_바꾼다(self):
+        out, _ = self.convert([
+            request('GET', 'https://api.example.com/api/v1/members/17/memo'),
+        ], path_template=True)
+        self.assertEqual(out[0]['path'], '/api/v1/members/{id}/memo')
+
+    def test_자리표시자가_여러개여도_각각_바꾼다(self):
+        out, _ = self.convert([
+            request('GET', 'https://api.example.com/api/v1/schedule/40/7'),
+        ], path_template=True)
+        self.assertEqual(out[0]['path'], '/api/v1/schedule/{id}/{id}')
+
+    def test_문자열_열거형_세그먼트는_그대로_둔다(self):
+        # OpenAPI 실측: status·type·notificationCategory 는 값까지 대조돼야 한다.
+        out, _ = self.convert([
+            request('GET',
+                    'https://api.example.com/api/v1/schedule/trainer/COMPLETED'),
+        ], path_template=True)
+        self.assertEqual(out[0]['path'], '/api/v1/schedule/trainer/COMPLETED')
+
+    def test_v1_처럼_숫자가_섞인_세그먼트는_그대로_둔다(self):
+        out, _ = self.convert([
+            request('GET', 'https://api.example.com/api/v1/members/me'),
+        ], path_template=True)
+        self.assertEqual(out[0]['path'], '/api/v1/members/me')
+
+    def test_기본값은_치환하지_않는다(self):
+        out, _ = self.convert([
+            request('GET', 'https://api.example.com/api/v1/members/17/memo'),
+        ])
+        self.assertEqual(out[0]['path'], '/api/v1/members/17/memo')
+
+    def test_치환하지_않았는데_숫자_세그먼트가_있으면_통계에_남는다(self):
+        out, stats = self.convert([
+            request('GET', 'https://api.example.com/api/v1/members/17/memo'),
+            request('GET', 'https://api.example.com/api/v1/members/me'),
+        ])
+        self.assertEqual(stats['id_segment_paths'], 1)
+
+
+class HostAndApiFilterTest(unittest.TestCase):
+    """--host 와 '/api/' 필터는 AND 다 (OR 면 웹 문서 요청이 골든에 들어온다)."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def test_같은_오리진의_next_문서_요청을_걸러낸다(self):
+        # 웹앱과 API가 같은 오리진이라 현실적 호출은 --host geonganghaejim.site 다.
+        out, stats = h.convert(write_har(self.tmp.name, [
+            request('GET', 'https://geonganghaejim.site/sign-in'),
+            request('GET',
+                    'https://geonganghaejim.site/_next/data/abc/home.json'),
+            request('GET', 'https://geonganghaejim.site/api/v1/members/me'),
+        ]), api_host='geonganghaejim.site')
+
+        self.assertEqual([r['path'] for r in out], ['/api/v1/members/me'])
+        self.assertEqual(stats['skipped_non_api'], 2)
+
+
+class HeaderKeyDriftTest(unittest.TestCase):
+    """Dart request_capture.dart ↔ Python 헤더 allowlist 동기화 가드."""
+
+    def test_캡처_헤더_집합이_같다(self):
+        source = DART_CAPTURE.read_text(encoding='utf-8')
+        self.assertEqual(
+            dart_set(source, 'kCapturedHeaders'),
+            set(h.CAPTURED_HEADERS),
+            'Dart kCapturedHeaders 와 Python CAPTURED_HEADERS 가 어긋났다.',
+        )
+
+    def test_존재만_비교하는_헤더_집합이_같다(self):
+        source = DART_CAPTURE.read_text(encoding='utf-8')
+        self.assertEqual(
+            dart_set(source, 'kPresenceOnlyHeaders'),
+            set(h.PRESENCE_ONLY_HEADERS),
+            'Dart kPresenceOnlyHeaders 와 Python PRESENCE_ONLY_HEADERS 가 어긋났다.',
+        )
+
+
+class PathTemplateDriftTest(unittest.TestCase):
+    """생성기와 비교기가 같은 자리표시자 규칙을 쓰는지 고정한다.
+
+    한쪽만 바꾸면 골든은 `{id}` 를 담는데 비교기는 리터럴로 대조해 모든
+    화면이 실패하거나, 반대로 비교가 헐거워진다.
+    """
+
+    def test_자리표시자_토큰이_같다(self):
+        source = DART_MATCHER.read_text(encoding='utf-8')
+        token = re.search(
+            r"const String kPathIdPlaceholder = '([^']+)';", source
+        )
+        self.assertIsNotNone(token, 'kPathIdPlaceholder 선언을 찾지 못했다')
+        self.assertEqual(token.group(1), h.PATH_ID_PLACEHOLDER)
+
+    def test_세그먼트_패턴이_같다(self):
+        source = DART_MATCHER.read_text(encoding='utf-8')
+        pattern = re.search(
+            r"final RegExp kPathIdSegment = RegExp\(r'([^']+)'\);", source
+        )
+        self.assertIsNotNone(pattern, 'kPathIdSegment 선언을 찾지 못했다')
+        self.assertEqual(pattern.group(1), h.PATH_ID_SEGMENT.pattern)
 
 
 if __name__ == '__main__':
