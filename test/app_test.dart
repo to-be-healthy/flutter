@@ -472,6 +472,71 @@ void main() {
       expect(find.text(_selectGymHeadline), findsOneWidget);
     });
 
+    testWidgets('약관 허브는 로그인 없이도 열린다', (tester) async {
+      // 웹 `(login-unrequired)` 그룹이다. 인바운드는 마이페이지뿐이지만
+      // 딥링크·앱스토어 심사를 생각하면 비로그인 접근을 막을 이유가 없다.
+      await tester.pumpWidget(_app(initialLocation: AppRoutes.policy));
+      await tester.pumpAndSettle();
+
+      expect(find.text('약관 및 정책'), findsOneWidget);
+      expect(find.text('서비스 이용약관'), findsOneWidget);
+    });
+
+    testWidgets('약관 허브에서 이용약관을 누르면 그 화면으로 간다', (tester) async {
+      await tester.pumpWidget(_app(initialLocation: AppRoutes.policy));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('서비스 이용약관'));
+      await tester.pumpAndSettle();
+
+      // 아직 자리표시자다 — 본문 15,000자 이관은 별도 작업으로 남겼다.
+      expect(find.text('약관 및 정책'), findsNothing);
+    });
+
+    testWidgets('가입완료는 쿼리의 이름으로 인사한다', (tester) async {
+      await tester.pumpWidget(
+        _app(initialLocation: '/sign-up/complete?type=student&name=홍길동'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('홍길동님, 환영합니다!'), findsOneWidget);
+    });
+
+    testWidgets('가입완료에서 확인을 누르면 가입한 역할로 로그인에 간다', (tester) async {
+      await tester.pumpWidget(
+        _app(initialLocation: '/sign-up/complete?type=student&name=홍길동'),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('확인'));
+      await tester.pumpAndSettle();
+
+      // 역할이 빠지면 `/sign-in`의 `?type=` 게이트가 온보딩으로 되돌린다.
+      expect(find.text('회원 로그인'), findsOneWidget);
+    });
+
+    // **명시적 이탈.** 웹은 화면 안에서 인자 없는 `throw new Error()`를 던져
+    // 에러 화면에 떨어진다. 앱에서 크래시는 부적절하므로 라우터가 막는다.
+    testWidgets('가입완료에 이름이 없으면 온보딩으로 돌려보낸다', (tester) async {
+      await tester.pumpWidget(
+        _app(initialLocation: '/sign-up/complete?type=student'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('트레이너로 시작'), findsOneWidget);
+    });
+
+    testWidgets('가입완료에 역할이 없으면 온보딩으로 돌려보낸다', (tester) async {
+      await tester.pumpWidget(
+        _app(initialLocation: '/sign-up/complete?name=홍길동'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('트레이너로 시작'), findsOneWidget);
+    });
+
     testWidgets('로그인 상태로 상대 역할의 홈에 가면 자기 홈으로 돌려보낸다', (tester) async {
       // 웹 `UserRoleMiddleware`: `role !== memberType` → 자기 홈으로.
       await tester.pumpWidget(

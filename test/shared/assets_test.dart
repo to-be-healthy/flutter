@@ -25,6 +25,7 @@ const List<String> _svgAssets = <String>[
   'assets/images/google_logo_circle.svg',
   'assets/images/kakao_logo_circle.svg',
   'assets/images/apple_logo.svg',
+  'assets/images/arrow_right_small.svg',
 ];
 
 void main() {

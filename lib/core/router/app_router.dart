@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../entity/auth/api/auth_api.dart';
@@ -8,6 +9,8 @@ import '../../page/public/find_id_page.dart';
 import '../../page/public/find_password_page.dart';
 import '../../page/public/not_implemented_page.dart';
 import '../../page/public/onboarding_page.dart';
+import '../../page/public/policy_page.dart';
+import '../../page/public/sign_up_complete_page.dart';
 import '../../page/public/sign_in_page.dart';
 import '../../page/public/splash_page.dart';
 
@@ -30,6 +33,18 @@ abstract final class AppRoutes {
 
   static const String signUp = '/sign-up';
 
+  /// 웹 `(login-unrequired)/sign-up/complete?type=&name=`.
+  ///
+  /// 가입 자체는 `/sign-up`의 mutation이 끝냈고, 이 화면은 그 결과를
+  /// 쿼리스트링으로 받아 보여주기만 한다.
+  static const String signUpComplete = '/sign-up/complete';
+
+  /// 웹 `(login-unrequired)/policy` 계열. `/policy`는 자체 콘텐츠가 없는
+  /// 허브이고, 약관 두 화면으로 들어가는 유일한 경로다.
+  static const String policy = '/policy';
+  static const String policyTerms = '/policy/terms';
+  static const String policyPrivacy = '/policy/privacy';
+
   /// 웹 `/cs` — 고객센터. 온보딩 하단 링크의 목적지.
   static const String customerService = '/cs';
 
@@ -50,6 +65,9 @@ abstract final class AppRoutes {
   /// 웹 `(login-required)/select-gym` — 헬스장 미선택 사용자가 홈 대신 먼저
   /// 보는 화면. `UserRoleMiddleware`가 `gymId === null`이면 여기로 튕긴다.
   static const String selectGym = '/select-gym';
+
+  /// 웹 `?name=` 쿼리 이름. 가입완료 화면이 인사말에 쓴다.
+  static const String nameQuery = 'name';
 
   /// 웹 `?type=` 쿼리 이름. 온보딩과 로그인이 공유한다.
   static const String memberTypeQuery = 'type';
@@ -106,6 +124,41 @@ GoRouter createRouter({
             const NotImplementedPage(title: '회원가입', webRoute: '/sign-up'),
       ),
       GoRoute(
+        path: AppRoutes.signUpComplete,
+        builder: (context, state) => SignUpCompletePage(
+          // 아래 `_redirect`가 둘 다 있는 경우만 통과시키므로 여기서는 유효하다.
+          name: state.uri.queryParameters[AppRoutes.nameQuery]!,
+          memberType: _memberTypeOf(state)!,
+          onConfirm: (memberType) => context.go(
+            Uri(
+              path: AppRoutes.signIn,
+              queryParameters: {AppRoutes.memberTypeQuery: memberType},
+            ).toString(),
+          ),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.policy,
+        builder: (context, state) => PolicyPage(
+          onBack: () => _backOr(context, AppRoutes.onboarding),
+          onOpen: context.go,
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.policyTerms,
+        builder: (context, state) => const NotImplementedPage(
+          title: '서비스 이용약관',
+          webRoute: '/policy/terms',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.policyPrivacy,
+        builder: (context, state) => const NotImplementedPage(
+          title: '개인정보 처리방침',
+          webRoute: '/policy/privacy',
+        ),
+      ),
+      GoRoute(
         path: AppRoutes.customerService,
         builder: (context, state) =>
             const NotImplementedPage(title: '고객센터', webRoute: '/cs'),
@@ -141,6 +194,18 @@ GoRouter createRouter({
       ),
     ],
   );
+}
+
+/// 돌아갈 곳이 있으면 pop, 없으면 [fallback]으로 보낸다.
+///
+/// 딥링크·푸시로 화면에 바로 진입하면 스택이 비어 있어 pop이 아무 일도 하지
+/// 않는다 — 그러면 뒤로가기 버튼이 죽은 것처럼 보인다.
+void _backOr(BuildContext context, String fallback) {
+  if (context.canPop()) {
+    context.pop();
+  } else {
+    context.go(fallback);
+  }
 }
 
 /// 유효한 `?type=` 값만 돌려준다. 그 외(없음·오타)는 null.
@@ -185,6 +250,17 @@ String? _redirect(AuthState auth, GoRouterState state) {
   //    돌려보낸다 — 이 규칙이 없으면 아래 builder의 `!`가 터진다.
   if (location == AppRoutes.signIn && _memberTypeOf(state) == null) {
     return AppRoutes.onboarding;
+  }
+
+  // 웹 `SignUpCompletePage`는 `type`·`name`이 없으면 화면 안에서 인자 없는
+  // `throw new Error()`를 던져 `app/error.tsx`에 떨어진다. **앱에서 크래시는
+  // 부적절하므로** 그 판단을 여기로 올렸다 — 바로 위 `/sign-in` 게이트와
+  // 같은 패턴이고, 이 규칙이 없으면 위 builder의 `!`가 터진다.
+  if (location == AppRoutes.signUpComplete) {
+    final name = state.uri.queryParameters[AppRoutes.nameQuery];
+    if (_memberTypeOf(state) == null || name == null || name.isEmpty) {
+      return AppRoutes.onboarding;
+    }
   }
 
   final isHome =
