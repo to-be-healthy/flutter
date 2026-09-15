@@ -27,6 +27,27 @@ HAR을 버리고 골든만 남기면 그 경로가 사라지고, **모든 후속
 | `home-student.har` | 로그인 직후 홈이 쏘는 GET 3건 (`members/trainer-mapping`·`home/student`·`notification/red-dot`) | (아직 없음) | Phase 3 홈 화면 |
 | `find-id.har` | 아이디 찾기 `POST /api/v1/auth/find/user-id` 1건 | `find-id` | `FindIdPage` |
 | `find-password.har` | 비밀번호 찾기 `POST /api/v1/auth/find/password` 1건 | `find-password` | `FindPasswordPage` |
+| `select-gym.har` | 헬스장 선택 화면 진입 `GET /api/v1/gyms` 1건 | `select-gym` | `SelectGymPage` |
+
+### `select-gym` 재캡처 시 — 버튼을 누르지 마라
+
+- **캡처 방법:** 체험 계정으로 로그인한 뒤 `/select-gym`을 연다. 헬스장 목록
+  GET 하나만 담긴다. `(login-required)` 그룹에 `layout.tsx`가 없어서 소속
+  헬스장이 이미 있는 계정으로 열어도 화면이 뜨고 GET이 나간다(2026-09-15
+  실측: `healthy-student0`, `gymId=1`).
+- **`POST /api/v1/gyms/{gymId}`는 그 계정의 소속 헬스장을 실제로 바꾼다.**
+  `find/password`와 같은 부류의 공유 상태 뮤테이션이다. 화면을 띄우기만 하고
+  "다음"·"완료"는 누르지 마라.
+- **등록 POST는 골든을 만들지 않는다**(결정: 2026-09-15). 위 부작용 때문이고,
+  TRAINER `joinCode` 경로는 유효한 가입 코드가 없으면 캡처 자체가 불가능하다.
+  요청 모양은 `select_gym_page_test.dart`의 계약 테스트가 고정하며, 근거는 웹
+  `entity/gym/api/mutations.ts`와 `openapi/api-docs.json`이다.
+- **이 HAR의 `authorization` 값은 캡처 시점에 지웠다.** 변환기가 이 헤더를
+  presence-only로 `***` 마스킹하므로 실토큰이 있든 없든 생성되는 골든은 같다.
+  다른 HAR들은 실토큰을 품고 있으니 gitignore는 그대로 유지한다.
+- 이 요청에는 **`content-type`이 없다**(실측). 본문 없는 GET이라 브라우저가
+  붙이지 않는다 — `DioClient.create`가 전역 `contentType`을 지정하지 않는
+  이유가 이것이고, 그래서 앱 쪽 요청도 일치한다.
 
 ### 두 찾기 골든도 바꿔 쓰지 마라
 

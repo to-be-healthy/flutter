@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -9,12 +10,13 @@ import 'core/theme/app_theme.dart';
 import 'entity/auth/api/auth_api.dart';
 import 'entity/auth/model/auth_state.dart';
 import 'entity/auth/ui/auth_scope.dart';
+import 'entity/gym/api/gym_api.dart';
 import 'shared/ui/app_toast.dart';
 
 /// OS 글꼴 배율 상한.
 ///
 /// **왜 상한이 필요한가:** 이 앱의 디자인은 고정 높이를 쓰는 웹에서 픽셀
-/// 단위로 옮겨졌고(`AppButton.height` 44 = 웹 `h-[44px]`,
+/// 단위로 옮겨졌고(`AppButton.defaultHeight` 44 = 웹 `h-[44px]`,
 /// `AppTextInput.height` 50 = 웹 `h-[50px]`), 그 박스들은 배율에 따라
 /// 늘어나지 않는다. 배율을 무제한으로 따르면 글자가 박스를 넘친다 —
 /// "고정 높이"와 "무제한 OS 배율"은 동시에 참일 수 없다.
@@ -41,6 +43,7 @@ class GeonganghaejimApp extends StatefulWidget {
     this.tokenStorage = const SecureTokenStorage(),
     this.profileStorage = const SecureAuthProfileStorage(),
     this.initialLocation = AppRoutes.onboarding,
+    this.httpClientAdapter,
     super.key,
   });
 
@@ -53,6 +56,14 @@ class GeonganghaejimApp extends StatefulWidget {
   /// `MissingPluginException`을 던진다.
   final TokenStorage tokenStorage;
   final AuthProfileStorage profileStorage;
+
+  /// 전송 계층만 갈아끼우는 자리. 기본값(null)이면 실제 네트워크를 쓴다.
+  ///
+  /// 저장소 주입과 같은 이유로 열어 둔다 — 라우팅 테스트는 화면이 쏘는
+  /// 요청에 응답이 필요한데, 여기를 막아 두면 `app_test.dart`가 실제
+  /// 네트워크를 때리려다 느려지고 흔들린다. 인터셉터 체인(`AuthInterceptor`)
+  /// 은 그대로 살아 있어 **조립 자체는 프로덕션과 같은 경로**로 검증된다.
+  final HttpClientAdapter? httpClientAdapter;
 
   /// 앱이 처음 여는 경로. 기본값은 웹 `/`와 같다.
   ///
@@ -78,11 +89,21 @@ class _GeonganghaejimAppState extends State<GeonganghaejimApp> {
     super.initState();
 
     _authState = AuthState(widget.tokenStorage, widget.profileStorage);
+
+    // 클라이언트는 **하나**다. API별로 만들면 커넥션 풀과 인터셉터 체인이
+    // 갈라지고, 패리티 하네스가 어느 인스턴스를 캡처하는지도 흐려진다.
+    final dio = DioClient.create(
+      baseUrl: widget.baseUrl,
+      storage: widget.tokenStorage,
+    );
+    if (widget.httpClientAdapter != null) {
+      dio.httpClientAdapter = widget.httpClientAdapter!;
+    }
+
     _router = createRouter(
       authState: _authState,
-      authApi: AuthApi(
-        DioClient.create(baseUrl: widget.baseUrl, storage: widget.tokenStorage),
-      ),
+      authApi: AuthApi(dio),
+      gymApi: GymApi(dio),
       initialLocation: widget.initialLocation,
     );
 

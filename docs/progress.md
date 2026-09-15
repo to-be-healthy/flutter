@@ -361,3 +361,59 @@ Ruling: 체험 계정 상수를 **코드에는 둔다.** har/README.md에서 뺐
 리뷰가 자기 지적 하나를 철회했다: 딥링크 `_close` 대체 목적지를 `/sign-in?type=`으로 하라던 것 — 웹 `/find/id`에 애초에 쿼리가 없어 콜드 진입에는 보존할 역할이 없다는 실측이 맞다.
 `serverMessage` 승격 중 **동작이 하나 바뀐 것을 발견해 테스트로 고정했다.** 원래 private 헬퍼는 서버가 `message: ''`를 주면 `''`를 그대로 돌려줬고, 로그인 화면은 그걸로 **빈 에러 Text**를 그렸다(문구 없이 s6 간격만 생긴다). 토스트였다면 빈 검은 막대가 된다. `isNotEmpty` 조건을 붙여 null로 떨어뜨리고 호출부의 '문제가 발생했습니다.'를 쓰게 했다 — "순수 이동"에 섞인 의도적 수정이라 여기 남긴다. 상태 코드로 분기하지 않는다는 결정(HTTP 404 vs 본문 code "400")도 같은 파일에 고정했다.
 최종: **Dart 238 통과 + skip 0**(229 → 238), Python 30, verify.sh 4/4, analyze `No issues found!`.
+
+---
+
+## 2026-09-15 — `/select-gym` 이관 (웹 라우트 5/73)
+
+브랜치 `feature/select-gym`. 사용자 승인 설계는 `docs/select-gym-brief.md`.
+
+**웹 실측이 뒤집은 가정 둘.**
+① `AppButton.height = 44`는 컴포넌트 고유 치수가 아니라 **로그인 화면이 고른 값**이었다. 웹 전체 분포는 `h-[48px]` 25회 · `h-[57px]` 9회 · `h-[44px]` 5회이고 `/select-gym`은 57이다. 타이포도 갈린다(`TITLE_1_BOLD` 77회 vs `TITLE_1_SEMIBOLD` 84회). 고정해 두면 62개 화면이 전부 로그인 화면의 치수를 물려받으므로 `height`·`labelStyle`을 열었다 — 색과 half-leading 보정은 컴포넌트가 계속 책임진다(화면에 맡기면 하나만 빠뜨려도 그 화면만 1~2px 어긋난다). 상수는 `AppButton.defaultHeight`로 개명.
+② 웹 `(login-required)` 그룹에는 **`layout.tsx`가 없다.** 그룹 이름과 달리 실제로 막는 것이 아무것도 없고, 미로그인으로 `/select-gym`을 열면 토큰 없는 요청이 나간다(웹 쪽 결함). 앱은 이 화면이 `auth.user!.memberType`으로 제목을 갈라 그대로 두면 null 역참조로 죽으므로, **웹에 없는 게이트를 명시적 이탈로 추가**했다.
+
+**`context.go`가 없으면 화면이 넘어가지 않는다 (M1로 확인).** `_redirect`를 `/select-gym` 위치에서 돌리면 splash 아님 → signIn 아님 → `isHome` false → 모든 가드 통과 → `null`(현재 위치 유지)이다. `AuthState.setGymId`의 `notifyListeners()`가 `refreshListenable`을 깨워도 재평가 결과가 "그대로 있어라"라서 아무 일도 일어나지 않는다. 웹도 `router.push(...)`로 직접 이동한다. 뮤테이션으로 `context.go`를 지우니 이동 테스트 3건이 함께 깨졌다.
+
+**`pumpAndSettle`이 경합 테스트를 조용히 무력화한다 (M2가 알려준 것).** "프로필 저장 → 이동" 순서를 뒤집는 뮤테이션을 넣었는데 **테스트가 그대로 통과했다.** 원인은 `pumpAndSettle`이 기본 100ms씩 시간을 진행시킨다는 것 — 50ms 지연 저장소로 만든 경합 창이 첫 pump 한 번에 통째로 삼켜졌다. 2초로 늘리자 비로소 잡혔다(뒤집으면 `/student` 진입 시 `gymId == null`이라 `/select-gym`으로 되튕긴다). **가드를 넣고 뮤테이션이 안 잡히면 가드가 아니라 테스트 하네스를 먼저 의심할 것.** `next-steps.md` 규율 #11로 올렸다.
+
+**`AuthState`에 `gymId` 갱신 경로가 처음 생겼다.** 기존 mutator는 `signIn`/`signOut` 둘뿐이었다. `setGymId(int)`는 프로필 저장이 **끝난 뒤** 알린다. `AuthUser`에는 범용 `copyWith` 대신 `withGymId`만 열었다 — 아무 필드나 갈아끼울 수 있으면 `memberType`을 화면에서 바꾸는 코드가 생기고, 그 순간 라우팅 근거가 서버가 아니라 화면이 된다.
+
+**웹의 비대칭을 그대로 옮겼다.** `clickNext`는 `authValue`를 리셋하지만 `clickBack`은 `selectGymId`를 리셋하지 않는다. 그래서 인증 코드 단계에서 뒤로 오면 고른 헬스장이 남아 다음 버튼이 활성이다. 둘 다 테스트로 고정.
+
+**STUDENT POST는 바디가 없다.** 웹 axios는 `data === undefined`면 Content-Type을 붙이지 않는다. `registerGym`이 `{}` 대신 `null`을 넘겨야 같아지며, 이 성질의 전제는 Phase 0이 `DioClient.create`에서 전역 `contentType`을 일부러 지정하지 않은 것이다. 뮤테이션(`null` → `{}`)으로 두 단언이 함께 깨지는 것을 확인했다.
+
+**`AppOtpInput`은 입력 하나 + 슬롯 6개다.** 웹 `input-otp`와 같은 구조 — `TextField` 6개로 만들면 붙여넣기와 슬롯 경계 backspace가 달라진다. 테스트에서 `find.text`가 **숨은 입력의 값까지 잡는다**(같은 문자열이 두 곳에 산다)는 점에 걸려, 슬롯 안으로 범위를 좁히는 헬퍼를 뒀다.
+
+**명시적 이탈 1건(디자인).** 웹 로딩은 `/images/loading.gif` 20×20이다. 자산을 가져오지 않고 `CircularProgressIndicator`로 대체했다 — 애니메이션 자산은 `assets_test.dart` 목록 관리를 늘리는데 정작 움직임을 검증할 수단이 없다(규율 #8: "파싱됨"은 "보인다"가 아니다).
+
+**미완:** 패리티 골든 `select-gym`(GET 1건)이 아직 없다. 캡처를 마지막으로 미뤘다(사용자 결정). 절차와 주의는 `har/README.md`에 적어 뒀다. 등록 POST는 공유 상태 뮤테이션이라 골든을 만들지 않고 계약 테스트로 간다.
+
+**리뷰가 제기한 OTP 키보드 문제는 반대 결론이었다.** "`TextInputType.number`가 웹과 다르다"는 지적을 받고 양쪽을 실측했더니, 웹 `input-otp`의 `inputMode` **기본값이 `'numeric'`**이라 웹도 숫자 키패드를 띄운다(패키지 문서). 동시에 웹은 `pattern`을 주지 않아 문자 자체는 거르지 않는다. 백엔드도 `RandomStringUtils.randomNumeric(6)`으로 숫자 6자리를 만든다. 즉 "숫자 키보드 + 문자 필터 없음"이 패리티다. **틀린 것은 구현이 아니라 주석이었다** — 근거 없이 "숫자 키보드는 편의"라고 적어 임의 선택처럼 읽혔다. 근거를 넣고 두 성질을 짝으로 묶는 테스트를 추가했다(한쪽만 보고 필터를 넣는 "일관성 있는" 수정을 막는다).
+
+덤으로 확인된 것: **서버는 joinCode의 길이·문자 종류를 전혀 검증하지 않는다.** `CommandSelectMyGym`에 Bean Validation이 없고 컨트롤러에 `@Valid`도 없어 저장값과 문자열 동등 비교만 한다. 형식 제약을 서버에 기대면 안 된다.
+
+**골든 첨부(같은 날 이어서).** playwright로 체험 계정 세션에서 `/select-gym`을 열어 `GET /api/v1/gyms` 1건을 캡처했다. **등록 버튼은 누르지 않았다** — POST가 그 계정의 소속 헬스장을 실제로 바꾼다. 실측으로 확인된 것 둘: ① 요청에 `authorization`이 붙는다(웹 `authApi`), ② **`content-type`이 없다** — 본문 없는 GET이라 브라우저가 붙이지 않으며, Phase 0이 `DioClient.create`에서 전역 `contentType`을 지정하지 않은 결정이 여기서 값을 한다.
+
+HAR의 `authorization` 값은 캡처 시점에 지웠다. 변환기가 이 헤더를 presence-only로 `***` 마스킹하므로 실토큰이 있든 없든 생성되는 골든이 같다 — `har/README.md`에 명시했다(다른 HAR은 실토큰을 품고 있어 gitignore는 그대로다).
+
+**골든이 공허하지 않은지 뮤테이션 2건으로 확인했다.** M5(경로를 `/api/v1/gym`으로) → `path: 기대 /api/v1/gyms, 실제 /api/v1/gym (세그먼트 [3]: 'gyms' vs 'gym')`, M6(`/gyms`를 `_publicPaths`에 넣어 토큰 탈락) → `headers.authorization: 누락됨`. 둘 다 진단이 정확했다.
+
+최종: **Dart 292 통과**(238 → 292, +54), Python 30, `verify.sh` 4/4, analyze `No issues found!`. 뮤테이션 M1~M6 전부 기대대로 실패 확인.
+
+---
+
+## 2026-09-15 — `/policy` 허브 + `/sign-up/complete` (웹 라우트 7/73)
+
+"싼 화면 먼저"로 고른 4개 묶음인데, **실측이 전제를 절반 뒤집었다.** `/policy`(47줄)와 `/sign-up/complete`(55줄)는 정말 쌌지만 약관 2개는 아니었다 — 코드 줄 수(336·154)가 아니라 **본문 15,000자 + `<li>` 157개 + 2단계 중첩 리스트**가 본체이고, `.policy-container` CSS를 옮기면 사실상 약관 문서 렌더러를 새로 만드는 일이다. 전체 공수의 70%가 거기 있다. 본문 형식(Dart 위젯 직역 / Markdown 에셋 / 원격 fetch)을 정해야 하는 갈림길이라 **자리표시자로 남기고 둘만 옮겼다.** 실측은 `docs/policy-screens-survey.md`.
+
+**`AppLayout`의 본문에서 `Expanded`를 쓸 수 없다는 것을 여기서 처음 부딪혔다.** 웹 `SignUpCompletePage`는 바깥 div가 `justify-between`, 안쪽 div가 `h-full justify-center`다. 안쪽을 `Expanded`로 옮겼더니 `RenderFlex children have non-zero flex but incoming height constraints are unbounded`로 터졌다 — 셸이 본문을 `SingleChildScrollView`로 감싸기 때문이다(그 `ConstrainedBox(minHeight:)`는 최소 높이만 보장하지 최대를 묶지 않는다). **높이 0짜리 자식을 맨 위에 두고 `spaceBetween`**으로 재현했다: 자식이 셋이면 남는 공간이 두 등분되어 가운데 블록 위아래 간격이 같아지고, 결과 위치가 웹의 "버튼 위 영역에서 가운데"와 정확히 일치한다. 62개 화면이 반복해서 만날 문제라 규율 #12로 올렸다.
+
+**화살표 자산의 색 override는 no-op이었다.** 웹 `PolicyPage`가 `IconArrowRightSmall`에 `stroke={'var(--gray-400)'}`를 넘기는데, 자산 자체가 이미 `stroke="#A7A9AE"`이고 `--gray-400: #a7a9ae`다 — 같은 값이다. 그래서 Flutter에서는 색을 덮지 않고 `back.svg`·`close.svg`와 같이 그대로 쓴다.
+
+**가입완료의 파라미터 누락 처리를 라우터로 올렸다(명시적 이탈).** 웹은 화면 안에서 `if (!type || !name) throw new Error()`로 **인자 없는** 에러를 던져 `app/error.tsx`에 떨어진다. 앱에서 크래시는 부적절하므로 `/sign-in`의 `?type=` 게이트와 같은 자리에서 온보딩으로 돌려보낸다. 뮤테이션 M7(name 게이트 제거)로 확인했다.
+
+**이 둘은 지금 앱에서 도달 불가다.** `/policy`의 유일한 인바운드는 마이페이지(미구현), `/sign-up/complete`는 `/sign-up`(자리표시자)이다. 선행 작업으로만 의미가 있고 확인은 `--dart-define=INITIAL_LOCATION=/policy`로 한다. 요청이 0건이라 **패리티 골든이 없다** — 하네스를 빠뜨린 게 아니라 대조할 요청 자체가 없는 경우다.
+
+**웹 쪽 버그 1건 발견(미수정).** `frontend/src/page/public/ui/PolicyTermsPage.tsx:313`에 `<h3></h3>` 빈 제목이 있다. 제23조와 제25조 사이, 내용은 분쟁해결 — `제 24조 [분쟁해결]`이 누락됐고 현재 웹은 조항 번호 없이 렌더 중이다. 약관 본문을 옮길 때 원본 문서와 대조해 채우고 **웹도 함께 고쳐야 한다.**
+
+최종: **Dart 316 통과**(292 → 316, +24), Python 30, `verify.sh` 4/4, analyze `No issues found!`. 뮤테이션 M7·M8 기대대로 실패 확인.

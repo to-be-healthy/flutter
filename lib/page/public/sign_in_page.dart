@@ -27,7 +27,7 @@ import '../../widget/app_layout.dart';
 /// **웹의 임의값(`[Npx]`)은 스케일로 반올림하지 않고 상수로 옮긴다.**
 /// 웹 저자가 스페이싱 클래스를 두고 임의값 문법을 골랐다면 그 자체가 결정이고,
 /// 가장 가까운 단계로 스냅하면 오차가 한 화면 안에서 누적된다 — 이 화면만 해도
-/// 40→36, 55→48, 46→48로 13px이 밀린다. 이미 `AppButton.height`(44)·
+/// 40→36, 55→48, 46→48로 13px이 밀린다. 이미 `AppButton.defaultHeight`(44)·
 /// `AppTextInput.height`(50)·`AppLayoutHeader.height`(56)가 같은 규칙이었다.
 /// 반대로 웹이 스케일 클래스(`mb-8`·`gap-y-3`·`mt-11`)를 쓴 곳은 전부 토큰이다.
 class SignInPage extends StatefulWidget {

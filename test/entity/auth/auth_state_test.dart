@@ -151,6 +151,69 @@ void main() {
     });
   });
 
+  group('헬스장 선택 (setGymId)', () {
+    test('gymId를 상태와 저장소에 함께 반영하고 알린다', () async {
+      // 웹 `SelectGymPage`의 `setUserInfo({...auth, gymId: selectGymId})`.
+      // 이 경로가 없으면 등록에 성공해도 라우터가 `/select-gym`으로
+      // 영원히 되돌린다(`isHome && gymId == null`).
+      await auth.signIn(_response());
+      var notified = 0;
+      auth.addListener(() => notified++);
+
+      await auth.setGymId(42);
+
+      expect(auth.user!.gymId, 42);
+      expect(profile.user!.gymId, 42);
+      expect(notified, 1);
+    });
+
+    test('gymId 외의 프로필 필드는 그대로 둔다', () async {
+      await auth.signIn(_response(memberType: 'TRAINER'));
+
+      await auth.setGymId(42);
+
+      expect(auth.user!.memberId, 6);
+      expect(auth.user!.name, '홍길동');
+      expect(auth.user!.userId, 'healthy-student0');
+      expect(auth.user!.memberType, 'TRAINER');
+    });
+
+    test('토큰은 건드리지 않는다', () async {
+      await auth.signIn(_response());
+      final writesBefore = tokens.writeCount;
+
+      await auth.setGymId(42);
+
+      expect(tokens.writeCount, writesBefore);
+      expect(tokens.clearCount, 0);
+      expect(tokens.access, 'access-token');
+    });
+
+    // **순서가 강제된다.** 화면은 `setGymId` 다음에 `context.go(홈)`을
+    // 부르는데, 알림이 저장소 쓰기보다 먼저 날아가면 그 사이에 라우터가
+    // 옛 프로필(gymId == null)로 리다이렉트를 계산할 수 있다.
+    test('알림 시점에는 저장소 쓰기가 이미 끝나 있다', () async {
+      await auth.signIn(_response());
+      int? gymIdSeenByListener;
+      auth.addListener(() => gymIdSeenByListener = profile.user?.gymId);
+
+      await auth.setGymId(42);
+
+      expect(gymIdSeenByListener, 42);
+    });
+
+    test('로그아웃 상태에서 부르면 아무 일도 하지 않는다', () async {
+      var notified = 0;
+      auth.addListener(() => notified++);
+
+      await auth.setGymId(42);
+
+      expect(auth.isSignedIn, isFalse);
+      expect(profile.writeCount, 0);
+      expect(notified, 0);
+    });
+  });
+
   group('로그인 → 인증 요청 (end-to-end)', () {
     test('로그인 뒤의 보호 경로 요청에 Authorization이 붙는다', () async {
       // **하네스에 남아 있던 가장 큰 미검증 주장이다.**

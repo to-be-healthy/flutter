@@ -79,6 +79,28 @@ class AuthState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 헬스장 선택 완료. 웹 `SelectGymPage`의
+  /// `setUserInfo({...auth, gymId: selectGymId})` 대응.
+  ///
+  /// **저장소 쓰기가 끝난 뒤에 알린다.** 화면은 이 호출 다음에
+  /// `context.go(홈)`을 부르는데, 알림이 먼저 날아가면 그 사이에 라우터가
+  /// 옛 프로필(`gymId == null`)로 리다이렉트를 계산해 `/select-gym`으로
+  /// 되돌릴 수 있다.
+  ///
+  /// 토큰은 건드리지 않는다 — 이 요청은 프로필만 바꾼다.
+  Future<void> setGymId(int gymId) async {
+    final current = _user;
+    // 로그인 상태가 아니면 갱신할 프로필 자체가 없다. 화면은 라우터
+    // 게이트로 막혀 있으므로 정상 흐름에서는 오지 않는 경로다.
+    if (current == null) {
+      return;
+    }
+    final updated = current.withGymId(gymId);
+    await _profile.write(updated);
+    _user = updated;
+    notifyListeners();
+  }
+
   Future<void> signOut() async {
     await _clearBoth();
     _user = null;

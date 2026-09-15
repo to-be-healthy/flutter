@@ -1,4 +1,4 @@
-# 다음 세션 시작점 (2026-09-14 기준)
+# 다음 세션 시작점 (2026-09-15 기준)
 
 **이 파일부터 읽어라.** `progress.md`는 "왜 그렇게 결정했나"의 시간순 원장이고,
 이 파일은 "이제 무엇을 하나"다. 둘의 역할이 다르다.
@@ -7,27 +7,46 @@
 
 ## 1. 지금 상태 한 줄
 
-웹 라우트 **73개 중 4개** 이관 완료(`/`·`/sign-in`·`/find/id`·`/find/pw`).
-Dart 238 테스트 통과, `verify.sh` 4/4, `flutter analyze` clean.
-**커밋 안 됨**(변경 11 + 신규 20), **푸시 안 됨**(로컬 커밋 다수).
+웹 라우트 **73개 중 7개** 이관 완료
+(`/`·`/sign-in`·`/find/id`·`/find/pw`·`/select-gym`·**`/policy`**·
+**`/sign-up/complete`**).
+Dart 316 테스트 통과, `verify.sh` 4/4, `flutter analyze` clean.
+브랜치 `feature/select-gym`, **커밋 안 됨**.
 
-### 가장 눈에 띄는 구멍
+### 남은 구멍
 
-로그인이 **자리표시자에 착지한다.** 로그인에 성공하면 `/student`·`/trainer`로
-가는데 둘 다 `NotImplementedPage`이고, 헬스장 미선택 계정은 `/select-gym`으로
-튕기는데 그것도 자리표시자다. 즉 **지금 앱은 로그인까지만 쓸 수 있다.**
+로그인·헬스장 등록까지는 실제로 동작한다. 그 다음이 전부 자리표시자다 —
+`/student`·`/trainer`·`/trainer/class-time-setting`.
+
+### `/select-gym` 골든 — 첨부 완료 (2026-09-15)
+
+`har/select-gym.har` → `test/fixtures/requests/select-gym.json`.
+`GET /api/v1/gyms` 1건이고 `expectParity('select-gym', ...)`가 소비한다.
+
+등록 `POST`는 **골든을 만들지 않았다** — 그 계정의 소속 헬스장을 실제로
+바꾸는 공유 상태 뮤테이션이고, TRAINER `joinCode` 경로는 유효한 가입 코드가
+없으면 캡처 자체가 불가능하다. 계약 테스트가 대신한다.
 
 ---
 
 ## 2. 바로 다음에 할 일 (권장 순서)
 
-### ① `/select-gym` — 막다른 길 뚫기
+### ~~① `/select-gym`~~ — 완료 (2026-09-15)
 
-- 규모: 화면 133줄, 전이 UI 합계 ~317줄, API 2건(인증 필요)
-- 새로 필요한 것: **OTP 스타일 입력** 1종 (토스트는 이미 있다)
-- 왜 먼저인가: 신규 가입자가 로그인 직후 **처음 보는 화면**이다. 라우터의
-  `gymId == null → /select-gym` 규칙(`app_router.dart`)이 이미 살아 있어서,
-  이 화면만 채우면 그 경로가 실제로 연결된다.
+`docs/select-gym-brief.md` 참고. 이관하며 알게 된 것 셋:
+
+1. **`context.go`가 없으면 화면이 넘어가지 않는다.** `_redirect`를
+   `/select-gym` 위치에서 돌리면 어느 규칙에도 걸리지 않아 `null`을 반환한다.
+   `refreshListenable` 알림만으로는 부족하다 — 뮤테이션으로 확인했다
+   (이동 테스트 3건이 함께 깨진다).
+2. **`AppButton`의 높이·라벨 굵기를 열었다.** 웹 실측에서 버튼 높이가 화면마다
+   다르다(`h-[48px]` 25회, `h-[57px]` 9회, `h-[44px]` 5회). 44는 로그인
+   화면이 고른 값이지 컴포넌트 고유 치수가 아니었다. `AppButton.height`
+   상수는 `AppButton.defaultHeight`로 이름이 바뀌었다.
+3. **`pumpAndSettle`은 기본 100ms씩 시간을 진행시킨다.** 그보다 짧은 지연은
+   한 pump에 통째로 삼켜져서, 경합을 재현하려는 테스트가 조용히 무력해진다
+   (50ms 지연으로는 순서 뒤집기 뮤테이션이 잡히지 않았고 2초로 늘려야 잡혔다).
+   비동기 순서를 고정하는 테스트를 쓸 때 기억할 것.
 
 ### ② `/student` 홈 — 인프라를 한 번에 끌고 오는 화면
 
@@ -47,16 +66,22 @@ Dart 238 테스트 통과, `verify.sh` 4/4, `flutter analyze` clean.
 > `har/home-student.har`에서 생성돼 있는데 **소비하는 테스트가 아직 없다.**
 > 홈 화면을 만들면 `expectParity('home-student', ...)`로 바로 쓴다.
 
-### 대안: 몸풀기가 필요하면 `/sign-up/complete`
+### ~~대안: 몸풀기~~ — 완료 (2026-09-15)
 
-55줄, **API 0건**, 새 컴포넌트 0개. 가장 싼 화면이다. 다만 `/sign-up`을
-거치지 않으면 도달할 수 없어 단독으로는 가치가 낮다.
+`/policy` 허브와 `/sign-up/complete`를 옮겼다. 실측 결론은
+`docs/policy-screens-survey.md`에 있다.
+
+**약관 본문 2개(`/policy/terms`·`/policy/privacy`)는 자리표시자로 남겼다.**
+"싼 화면"이 아니었다 — 코드 줄 수(336·154)보다 **본문 15,000자 + `<li>` 157개 +
+2단계 중첩 리스트**가 본체이고, `.policy-container` CSS를 옮기면 사실상 약관
+문서 렌더러를 새로 만드는 일이다. 형식(Dart 위젯 직역 vs Markdown 에셋 vs
+원격 fetch)을 먼저 정해야 한다 — 서베이 문서 §"결정이 필요한 것" 참고.
 
 ---
 
-## 3. 화면 인벤토리 — 69개 남음
+## 3. 화면 인벤토리 — 66개 남음
 
-### 공개 (9개 남음 / 13개 중 4개 완료)
+### 공개 (6개 남음 / 13개 중 7개 완료)
 
 | 라우트 | 상태 | 비고 |
 |---|---|---|
@@ -64,12 +89,13 @@ Dart 238 테스트 통과, `verify.sh` 4/4, `flutter analyze` clean.
 | `/sign-in` | ✅ | |
 | `/find/id` | ✅ | |
 | `/find/pw` | ✅ | |
-| `/select-gym` | 자리표시자 | **①번 권장 대상** |
+| `/select-gym` | ✅ | 골든 `select-gym`(GET 1건) |
 | `/sign-up` | 자리표시자 | **5단계 누적형 퍼널** — 아래 주의 참고 |
-| `/sign-up/complete` | 미착수 | 55줄, API 0건 |
+| `/sign-up/complete` | ✅ | 요청 0건 |
 | `/cs` | 자리표시자 | 고객센터 |
 | `/invite` | 미착수 | 초대 링크 수락 |
-| `/policy` `/policy/terms` `/policy/privacy` | 미착수 | 정적 약관 3개 |
+| `/policy` | ✅ | 허브(링크 2행). 요청 0건 |
+| `/policy/terms` `/policy/privacy` | 자리표시자 | **본문 15,000자** — 형식 결정 필요 |
 | `/[provider]/callback` | 미착수 | 소셜 로그인 콜백 (네이버·구글·카카오·애플) |
 
 ### 회원 student (26개 남음)
@@ -87,10 +113,15 @@ Dart 238 테스트 통과, `verify.sh` 4/4, `flutter analyze` clean.
 
 ---
 
-## 4. 공용 컴포넌트 — 웹 21종 중 4종 완료
+## 4. 공용 컴포넌트 — 웹 21종 중 5종 완료
 
-**완료:** `AppButton` · `AppTextInput` · `AppTextLink` · `AppToast`
+**완료:** `AppButton` · `AppTextInput` · `AppTextLink` · `AppToast` ·
+**`AppOtpInput`**(웹 `input-otp`)
 **`widget` 계층 완료:** `AppLayout`(Header/Contents/BottomArea)
+**feature 계층:** `GymSelectList` · `GymVerificationCode`
+
+> `AppOtpInput`은 **입력 하나 + 슬롯 6개 렌더**다(웹 `input-otp`와 같은 구조).
+> `TextField` 6개로 만들면 붙여넣기와 슬롯 경계 backspace가 달라진다.
 
 **미구현 (웹 `src/shared/ui`):**
 `card` · `collapsible` · `progress` · `sheet`(바텀시트) · `alert-dialog` ·
@@ -141,8 +172,12 @@ push로 옮기면 **원본과 다른 화면이 된다.**
 
 ## 6. 부채 · 미결
 
-- **커밋·푸시 결정** — 워킹트리에 변경 11 + 신규 20이 있고, 로컬 커밋은 한 번도
-  푸시되지 않았다. 커밋·푸시는 **사용자가 요청할 때만** 한다(workspace CLAUDE.md).
+- **커밋·푸시 결정** — `feature/select-gym` 브랜치에 변경 9 + 신규 8이 있다.
+  커밋·푸시는 **사용자가 요청할 때만** 한다(workspace CLAUDE.md).
+- **`/select-gym`에 웹에 없는 게이트를 넣었다.** 웹 `(login-required)` 그룹에는
+  `layout.tsx`가 없어 실제로 막는 것이 없지만, 이 화면이
+  `auth.user!.memberType`으로 제목을 갈라서 그대로 두면 null 역참조로 죽는다.
+  미로그인 접근을 온보딩으로 돌려보낸다(`app_router.dart` 주석에 명시).
 - **`AuthState.signOut()`의 프로덕션 호출부가 0개다.** Phase 0에서
   `writeTokens` 호출부가 0개였던 것과 **정확히 같은 냄새**이고, 그건 실제
   버그였다(로그인해도 토큰이 저장되지 않았다). 마이페이지 화면이 생기면 해소된다 —
@@ -192,6 +227,18 @@ push로 옮기면 **원본과 다른 화면이 된다.**
    flutter run -d <device> --dart-define=INITIAL_LOCATION=/find/id
    ```
 10. **커밋·푸시는 사용자가 요청할 때만.**
+12. **`AppLayout`의 `contents` 안에서 `Expanded`/`Flexible(flex)`를 쓸 수 없다.**
+    셸이 본문을 `SingleChildScrollView`로 감싸 세로 제약이 unbounded라
+    `RenderFlex children have non-zero flex but incoming height constraints
+    are unbounded`로 터진다. 웹의 `h-full` + `justify-center`는 **높이 0짜리
+    자식을 맨 위에 두고 `spaceBetween`**으로 재현한다 — 자식이 셋이면 남는
+    공간이 두 등분되어 가운데 블록 위아래 간격이 같아진다
+    (`sign_up_complete_page.dart` 참고).
+11. **비동기 순서를 고정하는 테스트는 지연을 100ms보다 크게 잡는다.**
+    `pumpAndSettle`이 기본 100ms씩 시간을 진행시켜서, 그보다 짧은 창은 한
+    pump에 통째로 삼켜진다 — 뮤테이션을 넣어도 테스트가 그대로 통과해
+    **가드가 있는 줄 알고 넘어간다.** 실측: 50ms는 안 잡히고 2초는 잡혔다
+    (`app_test.dart`의 `_SlowProfileStorage`).
 
 ---
 
