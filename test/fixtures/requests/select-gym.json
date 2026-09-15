@@ -1,0 +1,11 @@
+[
+  {
+    "method": "GET",
+    "path": "/api/v1/gyms",
+    "query": {},
+    "headers": {
+      "authorization": "***"
+    },
+    "body": null
+  }
+]

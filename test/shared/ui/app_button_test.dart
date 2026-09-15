@@ -44,16 +44,52 @@ void main() {
       );
     });
 
-    testWidgets('버튼 높이는 웹 h-[44px]와 같다', (tester) async {
+    testWidgets('기본 버튼 높이는 웹 h-[44px]와 같다', (tester) async {
       // 웹 `SignInForm.tsx:100`이 `h-[44px]`로 고정한다. 패딩 기반이던
       // 이전 구현은 ~10px 높았다.
       await tester.pumpWidget(_wrap(AppButton(label: '로그인', onPressed: () {})));
 
       expect(
         tester.getSize(find.byKey(AppButton.backgroundKeyFor('로그인'))).height,
-        AppButton.height,
+        AppButton.defaultHeight,
       );
-      expect(AppButton.height, 44.0);
+      expect(AppButton.defaultHeight, 44.0);
+    });
+
+    // 웹 실측: 버튼 높이는 화면마다 다르다 — `h-[48px]` 25회, `h-[57px]` 9회,
+    // `h-[44px]` 5회. 44는 **로그인 화면의 값**이지 컴포넌트의 고정 치수가
+    // 아니다. 고정해 두면 62개 화면이 전부 로그인 화면의 높이를 물려받는다.
+    testWidgets('화면이 높이를 덮을 수 있다', (tester) async {
+      await tester.pumpWidget(
+        _wrap(AppButton(label: '다음', onPressed: () {}, height: 57)),
+      );
+
+      expect(
+        tester.getSize(find.byKey(AppButton.backgroundKeyFor('다음'))).height,
+        57.0,
+      );
+    });
+
+    // 웹 실측: `TITLE_1_BOLD` 77회 · `TITLE_1_SEMIBOLD` 84회. 둘 다 흔하고
+    // `/select-gym`은 BOLD다. 굵기까지 고정하면 그 화면이 웹과 달라진다.
+    testWidgets('화면이 라벨 스타일을 덮을 수 있다', (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          AppButton(
+            label: '다음',
+            onPressed: () {},
+            labelStyle: AppTypography.title1,
+          ),
+        ),
+      );
+
+      final label = tester.widget<Text>(find.text('다음'));
+
+      expect(label.style!.fontWeight, AppTypography.title1.fontWeight);
+      // 색과 half-leading 보정은 컴포넌트가 계속 책임진다 — 화면이 넘긴
+      // 스타일이 그 둘까지 덮으면 62개 화면이 각자 다시 지정해야 한다.
+      expect(label.style!.color, Colors.white);
+      expect(label.style!.leadingDistribution, TextLeadingDistribution.even);
     });
 
     testWidgets('로딩 인디케이터가 떠도 높이는 44px로 같다', (tester) async {
@@ -63,7 +99,7 @@ void main() {
 
       expect(
         tester.getSize(find.byKey(AppButton.backgroundKeyFor('로그인'))).height,
-        AppButton.height,
+        AppButton.defaultHeight,
       );
     });
 

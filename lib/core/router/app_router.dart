@@ -2,6 +2,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../entity/auth/api/auth_api.dart';
 import '../../entity/auth/model/auth_state.dart';
+import '../../entity/gym/api/gym_api.dart';
+import '../../page/protected/select_gym_page.dart';
 import '../../page/public/find_id_page.dart';
 import '../../page/public/find_password_page.dart';
 import '../../page/public/not_implemented_page.dart';
@@ -38,6 +40,13 @@ abstract final class AppRoutes {
   static const String studentHome = '/student';
   static const String trainerHome = '/trainer';
 
+  /// 웹 `(login-required)/trainer/class-time-setting`.
+  ///
+  /// **트레이너가 헬스장 등록을 마치면 `/trainer`가 아니라 여기로 간다**
+  /// (웹 `SelectGymPage`의 `router.push('/trainer/class-time-setting')`).
+  /// `/trainer`로 보내면 웹과 다른 화면이 된다.
+  static const String trainerClassTimeSetting = '/trainer/class-time-setting';
+
   /// 웹 `(login-required)/select-gym` — 헬스장 미선택 사용자가 홈 대신 먼저
   /// 보는 화면. `UserRoleMiddleware`가 `gymId === null`이면 여기로 튕긴다.
   static const String selectGym = '/select-gym';
@@ -61,6 +70,7 @@ abstract final class AppRoutes {
 GoRouter createRouter({
   required AuthState authState,
   required AuthApi authApi,
+  required GymApi gymApi,
   String initialLocation = AppRoutes.onboarding,
 }) {
   return GoRouter(
@@ -119,9 +129,15 @@ GoRouter createRouter({
             const NotImplementedPage(title: '트레이너 홈', webRoute: '/trainer'),
       ),
       GoRoute(
+        path: AppRoutes.trainerClassTimeSetting,
+        builder: (context, state) => const NotImplementedPage(
+          title: '수업시간 설정',
+          webRoute: '/trainer/class-time-setting',
+        ),
+      ),
+      GoRoute(
         path: AppRoutes.selectGym,
-        builder: (context, state) =>
-            const NotImplementedPage(title: '헬스장 선택', webRoute: '/select-gym'),
+        builder: (context, state) => SelectGymPage(gymApi: gymApi),
       ),
     ],
   );
@@ -176,7 +192,16 @@ String? _redirect(AuthState auth, GoRouterState state) {
 
   if (!auth.isSignedIn) {
     // 웹 `UserRoleMiddleware`: `role === null` → `redirect('/')`.
-    return isHome ? AppRoutes.onboarding : null;
+    //
+    // `/select-gym`도 함께 막는다. **웹에는 이 가드가 없다** —
+    // `(login-required)` 그룹에 `layout.tsx`가 없어서 그룹 이름과 달리
+    // 실제로 막는 것이 아무것도 없고, 미로그인 상태로 열면 토큰 없는
+    // 요청이 나간다(웹 쪽 결함이다). 앱에서는 그 화면이
+    // `auth.user!.memberType`으로 제목을 갈라서 그대로 두면 null 역참조로
+    // 죽는다. 명시적 이탈로 온보딩에 돌려보낸다.
+    return (isHome || location == AppRoutes.selectGym)
+        ? AppRoutes.onboarding
+        : null;
   }
 
   // 웹 `app/page.tsx`: 로그인 상태로 `/`에 오면 자기 홈으로 보낸다.

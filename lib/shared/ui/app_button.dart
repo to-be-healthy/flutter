@@ -34,19 +34,25 @@ class AppButton extends StatelessWidget {
     required this.onPressed,
     this.variant = AppButtonVariant.primary,
     this.isLoading = false,
+    this.height = defaultHeight,
+    this.labelStyle,
     super.key,
   });
 
-  /// 웹 `SignInForm.tsx:100`의 `h-[44px]` 대응.
+  /// 웹 `SignInForm.tsx:100`의 `h-[44px]` 대응. **기본값일 뿐 고정 치수가
+  /// 아니다.**
   ///
   /// 예외(토큰화하지 않는 리터럴): 44는 `AppSpacing.standard`의 12단
   /// (4/6/8/10/12/16/20/24/28/32/36/48) 어디에도 없다 — 웹도 같은 이유로
-  /// 스페이싱 클래스 대신 임의값 문법(`h-[44px]`)을 썼다. 버튼 높이는 간격
-  /// 토큰이 아니라 이 컴포넌트 고유의 고정 치수다(`AppLayoutHeader.height`와
-  /// 같은 성격의 예외).
+  /// 스페이싱 클래스 대신 임의값 문법(`h-[44px]`)을 썼다.
+  ///
+  /// 웹 실측(2026-09-15): 버튼 높이는 화면마다 다르다 — `h-[48px]` 25회,
+  /// `h-[57px]` 9회, `h-[44px]` 5회. 44는 로그인 화면이 고른 값이라 기본값에
+  /// 두되, 화면이 [height]로 덮을 수 있어야 한다. 고정해 두면 62개 화면이
+  /// 전부 로그인 화면의 높이를 물려받는다.
   ///
   /// 패딩 기반(`vertical: spacing.s6`)이던 이전 구현은 약 10px 높았다.
-  static const double height = 44;
+  static const double defaultHeight = 44;
 
   /// 배경을 그리는 [Container]에 붙는 키. 위젯 트리 모양이 아니라
   /// "배경이 어떤 색을 쓰는가"만 테스트가 검증할 수 있게 한다.
@@ -60,6 +66,25 @@ class AppButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final AppButtonVariant variant;
   final bool isLoading;
+
+  /// 칠해지는 상자의 높이. 웹의 `h-[Npx]`를 그대로 옮긴다.
+  final double height;
+
+  /// 라벨 타이포. 기본값은 웹 `TITLE_1_SEMIBOLD`.
+  ///
+  /// 웹 실측: `TITLE_1_BOLD` 77회 · `TITLE_1_SEMIBOLD` 84회로 둘 다 흔하다
+  /// (`/select-gym`은 BOLD = `AppTypography.title1`).
+  ///
+  /// **색과 half-leading 보정은 이 컴포넌트가 계속 책임진다.** 넘긴 스타일의
+  /// 색·`leadingDistribution`은 덮어써진다 — 그 둘까지 화면에 맡기면 62개
+  /// 화면이 각자 다시 지정해야 하고, 하나라도 빠뜨리면 그 화면만 글자가
+  /// 1~2px 어긋난다.
+  ///
+  /// 나머지(`fontSize` 포함)는 넘긴 스타일이 그대로 이긴다. 웹이 버튼
+  /// 글자 크기를 바꾸는 화면이 있는지는 아직 실측하지 않았다 — 지금 쓰이는
+  /// 것은 16px 두 종(`title1`/`title1SemiBold`)뿐이므로 굳이 막지 않는다.
+  /// 다른 크기를 넘기는 화면이 생기면 그때 웹 렌더와 대조할 것.
+  final TextStyle? labelStyle;
 
   @override
   Widget build(BuildContext context) {
@@ -147,7 +172,7 @@ class AppButton extends StatelessWidget {
                   // 절반씩 나누지만(half-leading) Flutter 기본값은 폰트의
                   // ascent/descent 비율로 나눈다. 고정 높이 박스 안에서
                   // Pretendard 한글 글자가 1~2px 어긋나는 원인이다.
-                  style: AppTypography.title1SemiBold.copyWith(
+                  style: (labelStyle ?? AppTypography.title1SemiBold).copyWith(
                     color: foreground,
                     leadingDistribution: TextLeadingDistribution.even,
                   ),

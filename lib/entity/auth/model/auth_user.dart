@@ -75,6 +75,21 @@ class AuthUser {
   /// 웹 `router.replace(`/${data.memberType?.toLowerCase()}`)` 대응.
   String get homeLocation => '/${memberType.toLowerCase()}';
 
+  /// 헬스장만 바꾼 복사본. 웹 `setUserInfo({...auth, gymId: selectGymId})`
+  /// 에서 실제로 달라지는 필드가 이것 하나다.
+  ///
+  /// 범용 `copyWith`를 두지 않는 이유: 이 객체의 나머지 필드는 서버가 준
+  /// 로그인 응답에서만 와야 한다. 아무 필드나 갈아끼울 수 있는 문을 열면
+  /// `memberType`을 화면에서 바꾸는 코드가 생길 수 있고, 그 순간 라우팅
+  /// 근거가 서버가 아니라 화면이 된다.
+  AuthUser withGymId(int gymId) => AuthUser(
+    memberId: memberId,
+    name: name,
+    userId: userId,
+    memberType: memberType,
+    gymId: gymId,
+  );
+
   Map<String, dynamic> toJson() => {
     'memberId': memberId,
     'name': name,
