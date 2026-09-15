@@ -399,3 +399,21 @@ HAR의 `authorization` 값은 캡처 시점에 지웠다. 변환기가 이 헤�
 **골든이 공허하지 않은지 뮤테이션 2건으로 확인했다.** M5(경로를 `/api/v1/gym`으로) → `path: 기대 /api/v1/gyms, 실제 /api/v1/gym (세그먼트 [3]: 'gyms' vs 'gym')`, M6(`/gyms`를 `_publicPaths`에 넣어 토큰 탈락) → `headers.authorization: 누락됨`. 둘 다 진단이 정확했다.
 
 최종: **Dart 292 통과**(238 → 292, +54), Python 30, `verify.sh` 4/4, analyze `No issues found!`. 뮤테이션 M1~M6 전부 기대대로 실패 확인.
+
+---
+
+## 2026-09-15 — `/policy` 허브 + `/sign-up/complete` (웹 라우트 7/73)
+
+"싼 화면 먼저"로 고른 4개 묶음인데, **실측이 전제를 절반 뒤집었다.** `/policy`(47줄)와 `/sign-up/complete`(55줄)는 정말 쌌지만 약관 2개는 아니었다 — 코드 줄 수(336·154)가 아니라 **본문 15,000자 + `<li>` 157개 + 2단계 중첩 리스트**가 본체이고, `.policy-container` CSS를 옮기면 사실상 약관 문서 렌더러를 새로 만드는 일이다. 전체 공수의 70%가 거기 있다. 본문 형식(Dart 위젯 직역 / Markdown 에셋 / 원격 fetch)을 정해야 하는 갈림길이라 **자리표시자로 남기고 둘만 옮겼다.** 실측은 `docs/policy-screens-survey.md`.
+
+**`AppLayout`의 본문에서 `Expanded`를 쓸 수 없다는 것을 여기서 처음 부딪혔다.** 웹 `SignUpCompletePage`는 바깥 div가 `justify-between`, 안쪽 div가 `h-full justify-center`다. 안쪽을 `Expanded`로 옮겼더니 `RenderFlex children have non-zero flex but incoming height constraints are unbounded`로 터졌다 — 셸이 본문을 `SingleChildScrollView`로 감싸기 때문이다(그 `ConstrainedBox(minHeight:)`는 최소 높이만 보장하지 최대를 묶지 않는다). **높이 0짜리 자식을 맨 위에 두고 `spaceBetween`**으로 재현했다: 자식이 셋이면 남는 공간이 두 등분되어 가운데 블록 위아래 간격이 같아지고, 결과 위치가 웹의 "버튼 위 영역에서 가운데"와 정확히 일치한다. 62개 화면이 반복해서 만날 문제라 규율 #12로 올렸다.
+
+**화살표 자산의 색 override는 no-op이었다.** 웹 `PolicyPage`가 `IconArrowRightSmall`에 `stroke={'var(--gray-400)'}`를 넘기는데, 자산 자체가 이미 `stroke="#A7A9AE"`이고 `--gray-400: #a7a9ae`다 — 같은 값이다. 그래서 Flutter에서는 색을 덮지 않고 `back.svg`·`close.svg`와 같이 그대로 쓴다.
+
+**가입완료의 파라미터 누락 처리를 라우터로 올렸다(명시적 이탈).** 웹은 화면 안에서 `if (!type || !name) throw new Error()`로 **인자 없는** 에러를 던져 `app/error.tsx`에 떨어진다. 앱에서 크래시는 부적절하므로 `/sign-in`의 `?type=` 게이트와 같은 자리에서 온보딩으로 돌려보낸다. 뮤테이션 M7(name 게이트 제거)로 확인했다.
+
+**이 둘은 지금 앱에서 도달 불가다.** `/policy`의 유일한 인바운드는 마이페이지(미구현), `/sign-up/complete`는 `/sign-up`(자리표시자)이다. 선행 작업으로만 의미가 있고 확인은 `--dart-define=INITIAL_LOCATION=/policy`로 한다. 요청이 0건이라 **패리티 골든이 없다** — 하네스를 빠뜨린 게 아니라 대조할 요청 자체가 없는 경우다.
+
+**웹 쪽 버그 1건 발견(미수정).** `frontend/src/page/public/ui/PolicyTermsPage.tsx:313`에 `<h3></h3>` 빈 제목이 있다. 제23조와 제25조 사이, 내용은 분쟁해결 — `제 24조 [분쟁해결]`이 누락됐고 현재 웹은 조항 번호 없이 렌더 중이다. 약관 본문을 옮길 때 원본 문서와 대조해 채우고 **웹도 함께 고쳐야 한다.**
+
+최종: **Dart 316 통과**(292 → 316, +24), Python 30, `verify.sh` 4/4, analyze `No issues found!`. 뮤테이션 M7·M8 기대대로 실패 확인.

@@ -7,9 +7,10 @@
 
 ## 1. 지금 상태 한 줄
 
-웹 라우트 **73개 중 5개** 이관 완료
-(`/`·`/sign-in`·`/find/id`·`/find/pw`·**`/select-gym`**).
-Dart 292 테스트 통과, `verify.sh` 4/4, `flutter analyze` clean.
+웹 라우트 **73개 중 7개** 이관 완료
+(`/`·`/sign-in`·`/find/id`·`/find/pw`·`/select-gym`·**`/policy`**·
+**`/sign-up/complete`**).
+Dart 316 테스트 통과, `verify.sh` 4/4, `flutter analyze` clean.
 브랜치 `feature/select-gym`, **커밋 안 됨**.
 
 ### 남은 구멍
@@ -65,16 +66,22 @@ Dart 292 테스트 통과, `verify.sh` 4/4, `flutter analyze` clean.
 > `har/home-student.har`에서 생성돼 있는데 **소비하는 테스트가 아직 없다.**
 > 홈 화면을 만들면 `expectParity('home-student', ...)`로 바로 쓴다.
 
-### 대안: 몸풀기가 필요하면 `/sign-up/complete`
+### ~~대안: 몸풀기~~ — 완료 (2026-09-15)
 
-55줄, **API 0건**, 새 컴포넌트 0개. 가장 싼 화면이다. 다만 `/sign-up`을
-거치지 않으면 도달할 수 없어 단독으로는 가치가 낮다.
+`/policy` 허브와 `/sign-up/complete`를 옮겼다. 실측 결론은
+`docs/policy-screens-survey.md`에 있다.
+
+**약관 본문 2개(`/policy/terms`·`/policy/privacy`)는 자리표시자로 남겼다.**
+"싼 화면"이 아니었다 — 코드 줄 수(336·154)보다 **본문 15,000자 + `<li>` 157개 +
+2단계 중첩 리스트**가 본체이고, `.policy-container` CSS를 옮기면 사실상 약관
+문서 렌더러를 새로 만드는 일이다. 형식(Dart 위젯 직역 vs Markdown 에셋 vs
+원격 fetch)을 먼저 정해야 한다 — 서베이 문서 §"결정이 필요한 것" 참고.
 
 ---
 
-## 3. 화면 인벤토리 — 68개 남음
+## 3. 화면 인벤토리 — 66개 남음
 
-### 공개 (8개 남음 / 13개 중 5개 완료)
+### 공개 (6개 남음 / 13개 중 7개 완료)
 
 | 라우트 | 상태 | 비고 |
 |---|---|---|
@@ -84,10 +91,11 @@ Dart 292 테스트 통과, `verify.sh` 4/4, `flutter analyze` clean.
 | `/find/pw` | ✅ | |
 | `/select-gym` | ✅ | 골든 `select-gym`(GET 1건) |
 | `/sign-up` | 자리표시자 | **5단계 누적형 퍼널** — 아래 주의 참고 |
-| `/sign-up/complete` | 미착수 | 55줄, API 0건 |
+| `/sign-up/complete` | ✅ | 요청 0건 |
 | `/cs` | 자리표시자 | 고객센터 |
 | `/invite` | 미착수 | 초대 링크 수락 |
-| `/policy` `/policy/terms` `/policy/privacy` | 미착수 | 정적 약관 3개 |
+| `/policy` | ✅ | 허브(링크 2행). 요청 0건 |
+| `/policy/terms` `/policy/privacy` | 자리표시자 | **본문 15,000자** — 형식 결정 필요 |
 | `/[provider]/callback` | 미착수 | 소셜 로그인 콜백 (네이버·구글·카카오·애플) |
 
 ### 회원 student (26개 남음)
@@ -219,6 +227,13 @@ push로 옮기면 **원본과 다른 화면이 된다.**
    flutter run -d <device> --dart-define=INITIAL_LOCATION=/find/id
    ```
 10. **커밋·푸시는 사용자가 요청할 때만.**
+12. **`AppLayout`의 `contents` 안에서 `Expanded`/`Flexible(flex)`를 쓸 수 없다.**
+    셸이 본문을 `SingleChildScrollView`로 감싸 세로 제약이 unbounded라
+    `RenderFlex children have non-zero flex but incoming height constraints
+    are unbounded`로 터진다. 웹의 `h-full` + `justify-center`는 **높이 0짜리
+    자식을 맨 위에 두고 `spaceBetween`**으로 재현한다 — 자식이 셋이면 남는
+    공간이 두 등분되어 가운데 블록 위아래 간격이 같아진다
+    (`sign_up_complete_page.dart` 참고).
 11. **비동기 순서를 고정하는 테스트는 지연을 100ms보다 크게 잡는다.**
     `pumpAndSettle`이 기본 100ms씩 시간을 진행시켜서, 그보다 짧은 창은 한
     pump에 통째로 삼켜진다 — 뮤테이션을 넣어도 테스트가 그대로 통과해
