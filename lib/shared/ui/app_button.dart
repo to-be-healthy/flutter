@@ -54,6 +54,26 @@ class AppButton extends StatelessWidget {
   /// 패딩 기반(`vertical: spacing.s6`)이던 이전 구현은 약 10px 높았다.
   static const double defaultHeight = 44;
 
+  /// 웹 `button.tsx` **base**의 라벨 스타일 — `text-sm font-medium`
+  /// = 14px / 20px / 500 (실측).
+  ///
+  /// [labelStyle]의 기본값은 이것이 **아니다.** 지금까지 옮긴 화면들은
+  /// 웹이 사용처에서 `Typography.TITLE_1_SEMIBOLD`로 덮고 있어서 그쪽을
+  /// 기본값으로 두었다. base가 그대로 드러나는 화면은 따로 있고, 그런 곳이
+  /// 이 상수를 넘긴다:
+  /// - `/student/mypage/edit/password`의 제출 버튼 (실측 14 / 500)
+  /// - `/student/mypage/leave` 확인 다이얼로그의 `탈퇴하기`
+  ///
+  /// **기본값을 이것으로 바꾸지 마라** — 이미 옮긴 화면들이 전부 16px로
+  /// 커져야 맞는데, 그 화면들의 웹 렌더는 16px가 맞다.
+  static const TextStyle baseLabel = TextStyle(
+    fontFamily: AppTypography.family,
+    fontSize: 14,
+    height: 20 / 14,
+    fontWeight: FontWeight.w500,
+    letterSpacing: 0,
+  );
+
   /// 배경을 그리는 [Container]에 붙는 키. 위젯 트리 모양이 아니라
   /// "배경이 어떤 색을 쓰는가"만 테스트가 검증할 수 있게 한다.
   ///

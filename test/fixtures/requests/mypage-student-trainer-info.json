@@ -1,0 +1,11 @@
+[
+  {
+    "method": "GET",
+    "path": "/api/v1/members/trainer-mapping/info",
+    "query": {},
+    "headers": {
+      "authorization": "***"
+    },
+    "body": null
+  }
+]

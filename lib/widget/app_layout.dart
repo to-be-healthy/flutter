@@ -31,17 +31,50 @@ class AppLayout extends StatelessWidget {
     required this.contents,
     this.header,
     this.bottomArea,
+    this.bottomNavigation,
     this.backgroundColor,
+    this.scrollable = true,
     super.key,
-  });
+  }) : assert(
+         bottomArea == null || bottomNavigation == null,
+         '웹 `layout.tsx`는 둘을 배타로 고른다 — `type`이 student/trainer면 '
+         '네비를, undefined면 BottomArea를 그린다. 둘 다 넘기면 웹에 없는 '
+         '화면이 된다.',
+       );
 
   final Widget contents;
   final PreferredSizeWidget? header;
   final Widget? bottomArea;
 
+  /// 웹 `layout.tsx:35-36`의 `type === 'student' && <StudentNavigation />`.
+  ///
+  /// [bottomArea]와 **배타**다(웹 `type === undefined && footer`).
+  ///
+  /// 패딩을 얹지 않는다 — [bottomArea]는 웹 `footer`의 `p-7`을 셸이 대신
+  /// 붙여 주지만, 네비는 자기 패딩(`px-11 py-[18px]`)을 스스로 갖고 배경·
+  /// 그림자도 가장자리까지 닿아야 한다. 여기서 `p-7`을 두르면 흰 막대가
+  /// 화면 폭보다 좁아지고 그림자가 떠 보인다.
+  final Widget? bottomNavigation;
+
   /// 웹 `Layout` 루트 배경 대응. 기본값은 `AppColors.gray100`(웹
   /// `bg-gray-100`) — 화면이 흰 배경을 쓰려면 `Colors.white`를 넘긴다.
   final Color? backgroundColor;
+
+  /// 웹 `<Layout.Contents className='overflow-y-hidden'>` 대응.
+  ///
+  /// 기본값 true는 아래 `body`의 설명대로 본문을 스크롤뷰로 감싼다 — 웹
+  /// `Layout.Contents`의 기본값이 `overflow-y-auto`라서다.
+  ///
+  /// **false로 두면 [contents]가 body에 그대로 놓인다.** 검색바는 고정하고
+  /// 목록만 스크롤하는 화면(트레이너 `나의 회원`)이 그 경우고, 웹도 정확히
+  /// 같은 이유로 그 화면에서만 바깥 스크롤을 끄고 안쪽 div에
+  /// `overflow-y-auto`를 준다.
+  ///
+  /// **이때만 [contents] 안에서 `Expanded`를 쓸 수 있다.** 평소 금지인 이유는
+  /// 스크롤뷰의 높이가 무한이라 flex가 늘어날 자리를 못 정해 터지기
+  /// 때문인데, 스크롤뷰가 없으면 그 전제가 사라진다 — 오히려 안쪽 목록이
+  /// 남은 높이를 받으려면 `Expanded`가 있어야 한다.
+  final bool scrollable;
 
   @override
   Widget build(BuildContext context) {
@@ -70,25 +103,34 @@ class AppLayout extends StatelessWidget {
       // 으로 확정하므로 자식이 더 짧아도 minHeight까지 늘어나고, 남은 공간을
       // `mainAxisAlignment`가 분배한다.
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) => SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: contents,
-            ),
+        child: scrollable
+            ? LayoutBuilder(
+                builder: (context, constraints) => SingleChildScrollView(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
+                    ),
+                    child: contents,
+                  ),
+                ),
+              )
+            : contents,
+      ),
+      bottomNavigationBar: switch ((bottomArea, bottomNavigation)) {
+        (final Widget area, _) => SafeArea(
+          child: Padding(
+            padding:
+                EdgeInsets.all(spacing.s7) +
+                EdgeInsets.only(bottom: keyboardInset),
+            child: area,
           ),
         ),
-      ),
-      bottomNavigationBar: bottomArea == null
-          ? null
-          : SafeArea(
-              child: Padding(
-                padding:
-                    EdgeInsets.all(spacing.s7) +
-                    EdgeInsets.only(bottom: keyboardInset),
-                child: bottomArea,
-              ),
-            ),
+        // 네비는 자기 패딩·배경을 갖는다. 키보드 보정도 하지 않는다 —
+        // 네비가 있는 화면에는 하단 입력이 없고, 키보드가 열릴 때 네비가
+        // 따라 올라오면 웹(화면 아래 고정)과 달라진다.
+        (_, final Widget navigation) => SafeArea(top: false, child: navigation),
+        _ => null,
+      },
     );
   }
 }
@@ -100,11 +142,34 @@ class AppLayout extends StatelessWidget {
 /// 가운데 제목"을 반복 구현하고 있어, Flutter에서는 그 반복 형태를 표준
 /// 헤더로 승격했다.
 class AppLayoutHeader extends StatelessWidget implements PreferredSizeWidget {
-  const AppLayoutHeader({this.title, this.onBack, this.onClose, super.key});
+  const AppLayoutHeader({
+    this.title,
+    this.titleStyle,
+    this.onBack,
+    this.onClose,
+    this.trailing,
+    this.backgroundColor,
+    super.key,
+  }) : assert(
+         onClose == null || trailing == null,
+         '오른쪽 자리는 하나다. 웹에서도 닫기와 다른 액션이 같은 헤더에 함께 '
+         '놓인 화면은 없다 — 둘 다 넘기면 웹에 없는 헤더가 된다.',
+       );
 
   /// 없으면 제목 없는 헤더가 된다. 웹 온보딩의 `<Layout.Header />`(자식 없음)
   /// 처럼 **56px 자리만 잡는** 용도와, 뒤로가기만 있는 헤더에 쓴다.
   final String? title;
+
+  /// 제목 글꼴 override.
+  ///
+  /// **웹은 화면마다 `HEADING_4`(18/130 **bold**)와 `HEADING_4_SEMIBOLD`
+  /// (semibold)를 섞어 쓴다.** 로그인 계열은 semibold, 트레이너 `나의 회원`
+  /// (`StudentListPage.tsx:17`)은 bold다. 기본값(null)은 지금까지 옮긴
+  /// 화면들이 쓰던 semibold를 유지하고, 다른 화면은 자기 것을 넘긴다.
+  ///
+  /// 색은 넘긴 스타일을 그대로 쓴다 — 기본값의 `gray800`을 자동으로 얹지
+  /// 않는다. 얹으면 색까지 바꾸고 싶은 화면이 이 파라미터로는 못 바꾼다.
+  final TextStyle? titleStyle;
 
   /// 누르면 할 일. 웹은 화면마다 다르다 — 로그인 화면은 `router.push('/')`,
   /// 로그인 수단 선택 화면은 `router.back()`이다. 그래서 기본 동작(pop)에
@@ -119,6 +184,21 @@ class AppLayoutHeader extends StatelessWidget implements PreferredSizeWidget {
   /// (`onBack`을 명시로 함께 넘기면 둘 다 나온다 — 그런 화면이 생기면
   /// 그때 웹 렌더를 보고 맞춘다.)
   final VoidCallback? onClose;
+
+  /// 헤더 오른쪽에 놓을 임의 위젯. 웹 `Layout.Header`가 `justify-between`
+  /// 슬롯이라 화면마다 아무것이나 넣는 것(`<AddStudentDialog />` 등)에
+  /// 대응한다. [onClose]와 배타다(위 assert).
+  final Widget? trailing;
+
+  /// 웹 `<Layout.Header className='bg-white'>` 대응.
+  ///
+  /// **헤더만 흰색이고 본문은 gray-100인 화면이 있다**(마이페이지 허브가
+  /// 그렇다 — `StudentMyPage.tsx:26`). 그 경우 `AppLayout.backgroundColor`로는
+  /// 안 된다. 그것은 Scaffold 전체를 덮어서 본문까지 희어지기 때문이다.
+  ///
+  /// 기본값 null이면 투명이라 `AppLayout`이 고른 배경이 그대로 비친다 —
+  /// 화면 전체가 한 색인 대다수 화면의 동작이 바뀌지 않는다.
+  final Color? backgroundColor;
 
   /// 웹 `Layout.Header`의 `h-[56px]`(Tailwind 임의값 문법) 대응.
   ///
@@ -169,7 +249,7 @@ class AppLayoutHeader extends StatelessWidget implements PreferredSizeWidget {
       // AppBar가 transparent인 한, 헤더 영역에는 그 Scaffold 배경이
       // 그대로 비친다 — 회귀 테스트(app_layout_test.dart)가 이 둘을 함께
       // 확인한다.
-      backgroundColor: Colors.transparent,
+      backgroundColor: backgroundColor ?? Colors.transparent,
       // Material3 기본 AppBar는 스크롤에 따라 표면에 elevation 틴트를
       // 얹는다. 디자인 토큰이 아니라 그 틴트를 끄기 위한 Flutter API 값.
       surfaceTintColor: Colors.transparent,
@@ -202,21 +282,23 @@ class AppLayoutHeader extends StatelessWidget implements PreferredSizeWidget {
               onPressed: onBack ?? () => Navigator.of(context).pop(),
             )
           : null,
-      actions: onClose == null
-          ? null
-          : [
-              IconButton(
-                key: closeButtonKey,
-                // 웹 `close.svg`. 색을 덮지 않는 이유는 뒤로가기와 같다 —
-                // 자산이 `stroke="black"`으로 고정돼 있다.
-                icon: SvgPicture.asset(
-                  'assets/images/close.svg',
-                  width: closeIconSize,
-                  height: closeIconSize,
-                ),
-                onPressed: onClose,
-              ),
-            ],
+      actions: switch ((onClose, trailing)) {
+        (null, null) => null,
+        (null, final Widget action) => [action],
+        _ => [
+          IconButton(
+            key: closeButtonKey,
+            // 웹 `close.svg`. 색을 덮지 않는 이유는 뒤로가기와 같다 —
+            // 자산이 `stroke="black"`으로 고정돼 있다.
+            icon: SvgPicture.asset(
+              'assets/images/close.svg',
+              width: closeIconSize,
+              height: closeIconSize,
+            ),
+            onPressed: onClose,
+          ),
+        ],
+      },
       title: title == null
           ? null
           : Text(
@@ -229,9 +311,11 @@ class AppLayoutHeader extends StatelessWidget implements PreferredSizeWidget {
               // 그건 디자인이 고른 색이 아니라 **지정하지 않아서 나온 값**이다.
               // 이 팔레트의 가장 어두운 본문색인 gray800(`#2E3134`)을 쓴다 —
               // 디자인 검수에서 뒤집히면 그때 토큰을 추가한다.
-              style: AppTypography.heading4SemiBold.copyWith(
-                color: colors.gray800,
-              ),
+              style:
+                  titleStyle ??
+                  AppTypography.heading4SemiBold.copyWith(
+                    color: colors.gray800,
+                  ),
             ),
     );
   }

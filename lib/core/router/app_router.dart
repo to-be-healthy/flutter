@@ -4,7 +4,25 @@ import 'package:go_router/go_router.dart';
 import '../../entity/auth/api/auth_api.dart';
 import '../../entity/auth/model/auth_state.dart';
 import '../../entity/gym/api/gym_api.dart';
+import '../../entity/home/api/home_api.dart';
+import '../../entity/member/api/member_api.dart';
+import '../../entity/schedule/api/schedule_api.dart';
+import '../../entity/trainer/api/trainer_api.dart';
+import '../../entity/notification/api/notification_api.dart';
 import '../../page/protected/select_gym_page.dart';
+import '../../page/protected/student_home_page.dart';
+import '../../page/protected/student_my_page.dart';
+import '../../page/protected/student_my_page_alarm_page.dart';
+import '../../page/protected/student_my_page_trainer_info_page.dart';
+import '../../page/protected/student_my_page_edit_email_page.dart';
+import '../../page/protected/student_my_page_edit_name_page.dart';
+import '../../page/protected/student_my_page_edit_password_page.dart';
+import '../../page/protected/student_my_page_info_page.dart';
+import '../../page/protected/student_my_page_last_reservation_page.dart';
+import '../../page/protected/student_my_page_leave_page.dart';
+import '../../page/protected/trainer_home_page.dart';
+import '../../page/protected/trainer_manage_member_page.dart';
+import '../../page/protected/trainer_manage_page.dart';
 import '../../page/public/find_id_page.dart';
 import '../../page/public/find_password_page.dart';
 import '../../page/public/not_implemented_page.dart';
@@ -55,6 +73,100 @@ abstract final class AppRoutes {
   static const String studentHome = '/student';
   static const String trainerHome = '/trainer';
 
+  /// 회원 홈에서 나가는 경로 전부.
+  ///
+  /// **전부 등록해야 한다.** go_router는 등록되지 않은 경로로 `go`하면 에러
+  /// 화면을 띄우므로, 홈의 카드나 탭을 누르는 순간 앱이 에러 화면으로
+  /// 빠진다. 아직 옮기지 않은 화면은 `NotImplementedPage`가 받는다
+  /// (`/sign-up`·`/cs`·`/policy/terms`와 같은 관행).
+  ///
+  /// 하단 네비 3개(`schedule`·`community`·`mypage`)와 카드에서 나가는
+  /// 6개다. `studentLessonLog`는 상세(`/student/log/:id`)를 자식으로 갖는다.
+  static const String studentAlarm = '/student/alarm';
+  static const String studentSchedule = '/student/schedule';
+  static const String studentCommunity = '/student/community';
+  static const String studentMyPage = '/student/mypage';
+
+  /// 마이페이지 허브에서 나가는 경로 전부.
+  ///
+  /// 웹 `src/app/(login-required)/student/mypage/` 아래 8개 `page.tsx`다.
+  /// 허브가 이 중 셋(`last-reservation`·`trainer-info`·`alarm`)으로 직접
+  /// 링크하고, 나머지는 `info` 화면을 거쳐 들어간다.
+  ///
+  /// **허브가 링크하는 나머지 둘(`/policy`·`/cs`)은 마이페이지 밑이 아니다** —
+  /// 공개 라우트라 이미 등록돼 있다.
+  static const String studentMyPageInfo = '$studentMyPage/info';
+  static const String studentMyPageAlarm = '$studentMyPage/alarm';
+  static const String studentMyPageTrainerInfo = '$studentMyPage/trainer-info';
+  static const String studentMyPageLastReservation =
+      '$studentMyPage/last-reservation';
+  static const String studentMyPageLeave = '$studentMyPage/leave';
+  static const String studentMyPageEditName = '$studentMyPage/edit/name';
+  static const String studentMyPageEditEmail = '$studentMyPage/edit/email';
+  static const String studentMyPageEditPassword =
+      '$studentMyPage/edit/password';
+  static const String studentCourseHistory = '/student/course-history';
+  static const String studentPointHistory = '/student/point-history';
+  static const String studentLessonLog = '/student/log';
+  static const String studentDiet = '/student/diet';
+  static const String studentWorkout = '/student/workout';
+
+  /// 트레이너 홈에서 나가는 경로 전부. 회원 쪽과 같은 이유로 **전부
+  /// 등록해야 한다** — go_router는 등록되지 않은 경로로 `go`하면 에러
+  /// 화면을 띄운다.
+  ///
+  /// `trainerManageMember`는 `/trainer/manage`의 자식(`:memberId`)이다.
+  /// 오늘의 수업 카드와 우수 회원 이름이 그리로 들어간다.
+  static const String trainerAlarm = '/trainer/alarm';
+  static const String trainerSchedule = '/trainer/schedule';
+  static const String trainerCommunity = '/trainer/community';
+  static const String trainerMyPage = '/trainer/mypage';
+  static const String trainerManage = '/trainer/manage';
+  static const String trainerManageFeedback = '/trainer/manage/feedback';
+
+  /// `/trainer/manage`의 형제 라우트 둘. **`:memberId`보다 먼저 선언해야
+  /// 한다** — `feedback`과 같은 이유다.
+  static const String trainerManageInvite = '/trainer/manage/invite';
+  static const String trainerManageAppend = '/trainer/manage/append';
+
+  /// 회원 상세와 그 하위 13개.
+  ///
+  /// 웹 `/trainer/manage/[memberId]/**`다. 경로에 id가 들어가므로 상수가
+  /// 아니라 **함수**로 만든다 — `studentLessonLog`의 `:lessonHistoryId`가
+  /// 자식 하나뿐이라 상수로 버틴 것과 다르다.
+  static String trainerManageMember(Object memberId) =>
+      '$trainerManage/$memberId';
+  static String trainerManageMemberCourseHistory(Object memberId) =>
+      '${trainerManageMember(memberId)}/course-history';
+  static String trainerManageMemberPointHistory(Object memberId) =>
+      '${trainerManageMember(memberId)}/point-history';
+  static String trainerManageMemberReservation(Object memberId) =>
+      '${trainerManageMember(memberId)}/reservation';
+  static String trainerManageMemberEditMemo(Object memberId) =>
+      '${trainerManageMember(memberId)}/edit/memo';
+  static String trainerManageMemberEditNickname(Object memberId) =>
+      '${trainerManageMember(memberId)}/edit/nickname';
+  static String trainerManageMemberLog(Object memberId) =>
+      '${trainerManageMember(memberId)}/log';
+  static String trainerManageMemberLogWrite(Object memberId) =>
+      '${trainerManageMemberLog(memberId)}/write';
+  static String trainerManageMemberLogDetail(Object memberId, Object logId) =>
+      '${trainerManageMemberLog(memberId)}/$logId';
+  static String trainerManageMemberLogEdit(Object memberId, Object logId) =>
+      '${trainerManageMemberLogDetail(memberId, logId)}/edit';
+  static String trainerManageMemberDiet(Object memberId) =>
+      '${trainerManageMember(memberId)}/diet';
+  static String trainerManageMemberDietDetail(Object memberId, Object dietId) =>
+      '${trainerManageMemberDiet(memberId)}/$dietId';
+  static String trainerManageMemberWorkout(Object memberId) =>
+      '${trainerManageMember(memberId)}/workout';
+  static String trainerManageMemberWorkoutDetail(
+    Object memberId,
+    Object workoutHistoryId,
+  ) => '${trainerManageMemberWorkout(memberId)}/$workoutHistoryId';
+  static String trainerManageAppendMember(Object memberId) =>
+      '$trainerManageAppend/$memberId';
+
   /// 웹 `(login-required)/trainer/class-time-setting`.
   ///
   /// **트레이너가 헬스장 등록을 마치면 `/trainer`가 아니라 여기로 간다**
@@ -89,6 +201,11 @@ GoRouter createRouter({
   required AuthState authState,
   required AuthApi authApi,
   required GymApi gymApi,
+  required HomeApi homeApi,
+  required NotificationApi notificationApi,
+  required MemberApi memberApi,
+  required ScheduleApi scheduleApi,
+  required TrainerApi trainerApi,
   String initialLocation = AppRoutes.onboarding,
 }) {
   return GoRouter(
@@ -173,13 +290,356 @@ GoRouter createRouter({
       ),
       GoRoute(
         path: AppRoutes.studentHome,
+        builder: (context, state) => StudentHomePage(
+          homeApi: homeApi,
+          notificationApi: notificationApi,
+          memberApi: memberApi,
+          onNavigate: context.go,
+        ),
+      ),
+      // 홈에서 나가는 자리표시자들. 웹 경로를 그대로 적어 다음에 옮길 때
+      // 무엇을 보면 되는지 화면에서 바로 보이게 한다.
+      GoRoute(
+        path: AppRoutes.studentAlarm,
         builder: (context, state) =>
-            const NotImplementedPage(title: '회원 홈', webRoute: '/student'),
+            const NotImplementedPage(title: '알림', webRoute: '/student/alarm'),
+      ),
+      GoRoute(
+        path: AppRoutes.studentSchedule,
+        builder: (context, state) => const NotImplementedPage(
+          title: '수업예약',
+          webRoute: '/student/schedule',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.studentCommunity,
+        builder: (context, state) => const NotImplementedPage(
+          title: '커뮤니티',
+          webRoute: '/student/community',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.studentMyPage,
+        builder: (context, state) =>
+            StudentMyPage(memberApi: memberApi, onNavigate: context.go),
+        routes: [
+          // 웹의 `mypage/` 하위 8개. **`edit/*` 셋을 `edit` 부모 없이 두
+          // 단계 경로로 둔다** — 웹에 `edit/page.tsx`가 없어서 `/edit` 자체는
+          // 화면이 아니다. go_router는 중간 세그먼트에 라우트가 없어도
+          // 자식 경로에 슬래시를 포함시키면 매칭한다.
+          GoRoute(
+            path: 'info',
+            builder: (context, state) => StudentMyPageInfoPage(
+              memberApi: memberApi,
+              onNavigate: context.go,
+              // 웹 헤더의 `router.back()`. 이 라우트는 `/student/mypage`의
+              // **자식**이라 부모 페이지가 늘 스택에 함께 서 있고, 따라서
+              // `pop()`이 언제나 허브로 돌아간다 — 딥링크로 바로 들어와도
+              // 그렇다.
+              onBack: context.pop,
+            ),
+          ),
+          GoRoute(
+            path: 'alarm',
+            builder: (context, state) => StudentMyPageAlarmPage(
+              memberApi: memberApi,
+              onBack: context.pop,
+            ),
+          ),
+          GoRoute(
+            path: 'trainer-info',
+            builder: (context, state) => StudentMyPageTrainerInfoPage(
+              memberApi: memberApi,
+              onBack: context.pop,
+            ),
+          ),
+          GoRoute(
+            path: 'last-reservation',
+            builder: (context, state) => StudentMyPageLastReservationPage(
+              scheduleApi: scheduleApi,
+              // 웹 `useSearchParams().get('month')` — **없으면 null 그대로
+              // 넘긴다.** 오늘로 대체하면 웹의 `Invalid Date` 동작이 사라진다.
+              initialMonth: state.uri.queryParameters['month'],
+              onMonthChanged: (month) => context.go(
+                '${AppRoutes.studentMyPageLastReservation}?month=$month',
+              ),
+              // 웹 헤더는 `<Link href='/student/mypage'>`다 — `pop`이 아니다.
+              onBack: () => context.go(AppRoutes.studentMyPage),
+            ),
+          ),
+          GoRoute(
+            path: 'leave',
+            builder: (context, state) => StudentMyPageLeavePage(
+              memberApi: memberApi,
+              onNavigate: context.go,
+              onBack: context.pop,
+            ),
+          ),
+          GoRoute(
+            path: 'edit/name',
+            builder: (context, state) => StudentMyPageEditNamePage(
+              memberApi: memberApi,
+              onNavigate: context.go,
+              onBack: context.pop,
+            ),
+          ),
+          GoRoute(
+            path: 'edit/email',
+            builder: (context, state) => StudentMyPageEditEmailPage(
+              authApi: authApi,
+              memberApi: memberApi,
+              onNavigate: context.go,
+              onBack: context.pop,
+            ),
+          ),
+          GoRoute(
+            path: 'edit/password',
+            builder: (context, state) => StudentMyPageEditPasswordPage(
+              memberApi: memberApi,
+              onNavigate: context.go,
+              onBack: context.pop,
+            ),
+          ),
+        ],
+      ),
+      GoRoute(
+        path: AppRoutes.studentCourseHistory,
+        builder: (context, state) => const NotImplementedPage(
+          title: '수강내역',
+          webRoute: '/student/course-history',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.studentPointHistory,
+        builder: (context, state) => const NotImplementedPage(
+          title: '포인트 내역',
+          webRoute: '/student/point-history',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.studentLessonLog,
+        builder: (context, state) =>
+            const NotImplementedPage(title: '수업 일지', webRoute: '/student/log'),
+        routes: [
+          // 웹 `/student/log/[lessonHistoryId]`. 홈의 수업일지 카드가
+          // `/student/log/{id}`로 직접 들어간다.
+          GoRoute(
+            path: ':lessonHistoryId',
+            builder: (context, state) => const NotImplementedPage(
+              title: '수업 일지',
+              webRoute: '/student/log/[lessonHistoryId]',
+            ),
+          ),
+        ],
+      ),
+      GoRoute(
+        path: AppRoutes.studentDiet,
+        builder: (context, state) =>
+            const NotImplementedPage(title: '식단', webRoute: '/student/diet'),
+      ),
+      GoRoute(
+        path: AppRoutes.studentWorkout,
+        builder: (context, state) => const NotImplementedPage(
+          title: '개인 운동 기록',
+          webRoute: '/student/workout',
+        ),
       ),
       GoRoute(
         path: AppRoutes.trainerHome,
+        builder: (context, state) => TrainerHomePage(
+          homeApi: homeApi,
+          memberApi: memberApi,
+          notificationApi: notificationApi,
+          onNavigate: context.go,
+        ),
+      ),
+      // 트레이너 홈에서 나가는 자리표시자들.
+      GoRoute(
+        path: AppRoutes.trainerAlarm,
         builder: (context, state) =>
-            const NotImplementedPage(title: '트레이너 홈', webRoute: '/trainer'),
+            const NotImplementedPage(title: '알림', webRoute: '/trainer/alarm'),
+      ),
+      GoRoute(
+        path: AppRoutes.trainerSchedule,
+        builder: (context, state) => const NotImplementedPage(
+          title: '스케줄',
+          webRoute: '/trainer/schedule',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.trainerCommunity,
+        builder: (context, state) => const NotImplementedPage(
+          title: '커뮤니티',
+          webRoute: '/trainer/community',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.trainerMyPage,
+        builder: (context, state) => const NotImplementedPage(
+          title: '마이페이지',
+          webRoute: '/trainer/mypage',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.trainerManage,
+        builder: (context, state) =>
+            TrainerManagePage(trainerApi: trainerApi, onNavigate: context.go),
+        routes: [
+          // **`feedback`이 `:memberId`보다 먼저다.** go_router는 형제
+          // 라우트를 선언 순서로 매칭하므로, 반대로 두면
+          // `/trainer/manage/feedback`이 `memberId = 'feedback'`으로
+          // 잡힌다.
+          GoRoute(
+            path: 'feedback',
+            builder: (context, state) => const NotImplementedPage(
+              title: '피드백 작성',
+              webRoute: '/trainer/manage/feedback',
+            ),
+          ),
+          GoRoute(
+            path: 'invite',
+            builder: (context, state) => const NotImplementedPage(
+              title: '회원 초대',
+              webRoute: '/trainer/manage/invite',
+            ),
+          ),
+          GoRoute(
+            path: 'append',
+            builder: (context, state) => const NotImplementedPage(
+              title: '회원 추가',
+              webRoute: '/trainer/manage/append',
+            ),
+            routes: [
+              GoRoute(
+                path: ':memberId',
+                builder: (context, state) => const NotImplementedPage(
+                  title: '회원 추가 상세',
+                  webRoute: '/trainer/manage/append/[memberId]',
+                ),
+              ),
+            ],
+          ),
+          // **위 셋(`feedback`·`invite`·`append`)이 `:memberId`보다 먼저다.**
+          GoRoute(
+            path: ':memberId',
+            builder: (context, state) => TrainerManageMemberPage(
+              trainerApi: trainerApi,
+              memberId: state.pathParameters['memberId'] ?? '',
+              onNavigate: context.go,
+              // 웹 `router.back()` — 이 화면만은 홈 고정이 아니다.
+              onBack: () => context.pop(),
+            ),
+            routes: [
+              GoRoute(
+                path: 'course-history',
+                builder: (context, state) => const NotImplementedPage(
+                  title: '수강 내역',
+                  webRoute: '/trainer/manage/[memberId]/course-history',
+                ),
+              ),
+              GoRoute(
+                path: 'point-history',
+                builder: (context, state) => const NotImplementedPage(
+                  title: '포인트 내역',
+                  webRoute: '/trainer/manage/[memberId]/point-history',
+                ),
+              ),
+              GoRoute(
+                path: 'reservation',
+                builder: (context, state) => const NotImplementedPage(
+                  title: '예약 내역',
+                  webRoute: '/trainer/manage/[memberId]/reservation',
+                ),
+              ),
+              // 웹에 `edit/page.tsx`가 없어 `/edit` 자체는 화면이 아니다 —
+              // 마이페이지의 `edit/name`과 같은 두 세그먼트 자식이다.
+              GoRoute(
+                path: 'edit/memo',
+                builder: (context, state) => const NotImplementedPage(
+                  title: '메모 수정',
+                  webRoute: '/trainer/manage/[memberId]/edit/memo',
+                ),
+              ),
+              GoRoute(
+                path: 'edit/nickname',
+                builder: (context, state) => const NotImplementedPage(
+                  title: '닉네임 수정',
+                  webRoute: '/trainer/manage/[memberId]/edit/nickname',
+                ),
+              ),
+              GoRoute(
+                path: 'log',
+                builder: (context, state) => const NotImplementedPage(
+                  title: '수업 일지',
+                  webRoute: '/trainer/manage/[memberId]/log',
+                ),
+                routes: [
+                  // **`write`가 `:logId`보다 먼저다.** 반대로 두면
+                  // `.../log/write`가 `logId = 'write'`로 잡힌다 —
+                  // `feedback` / `:memberId`와 같은 함정이 한 단계 아래에서
+                  // 반복된다.
+                  GoRoute(
+                    path: 'write',
+                    builder: (context, state) => const NotImplementedPage(
+                      title: '수업 일지 작성',
+                      webRoute: '/trainer/manage/[memberId]/log/write',
+                    ),
+                  ),
+                  GoRoute(
+                    path: ':logId',
+                    builder: (context, state) => const NotImplementedPage(
+                      title: '수업 일지 상세',
+                      webRoute: '/trainer/manage/[memberId]/log/[logId]',
+                    ),
+                    routes: [
+                      GoRoute(
+                        path: 'edit',
+                        builder: (context, state) => const NotImplementedPage(
+                          title: '수업 일지 수정',
+                          webRoute:
+                              '/trainer/manage/[memberId]/log/[logId]/edit',
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              GoRoute(
+                path: 'diet',
+                builder: (context, state) => const NotImplementedPage(
+                  title: '식단',
+                  webRoute: '/trainer/manage/[memberId]/diet',
+                ),
+                routes: [
+                  GoRoute(
+                    path: ':dietId',
+                    builder: (context, state) => const NotImplementedPage(
+                      title: '식단 상세',
+                      webRoute: '/trainer/manage/[memberId]/diet/[dietId]',
+                    ),
+                  ),
+                ],
+              ),
+              GoRoute(
+                path: 'workout',
+                builder: (context, state) => const NotImplementedPage(
+                  title: '운동 기록',
+                  webRoute: '/trainer/manage/[memberId]/workout',
+                ),
+                routes: [
+                  GoRoute(
+                    path: ':workoutHistoryId',
+                    builder: (context, state) => const NotImplementedPage(
+                      title: '운동 기록 상세',
+                      webRoute:
+                          '/trainer/manage/[memberId]/workout/[workoutHistoryId]',
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
       ),
       GoRoute(
         path: AppRoutes.trainerClassTimeSetting,

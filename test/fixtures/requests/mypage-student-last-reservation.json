@@ -1,0 +1,13 @@
+[
+  {
+    "method": "GET",
+    "path": "/api/v1/schedule/student/my-reservation/old",
+    "query": {
+      "searchDate": "2026-09"
+    },
+    "headers": {
+      "authorization": "***"
+    },
+    "body": null
+  }
+]

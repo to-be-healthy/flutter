@@ -1,0 +1,11 @@
+[
+  {
+    "method": "GET",
+    "path": "/api/v1/trainers/members/6",
+    "query": {},
+    "headers": {
+      "authorization": "***"
+    },
+    "body": null
+  }
+]

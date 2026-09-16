@@ -1,4 +1,4 @@
-# 다음 세션 시작점 (2026-09-15 기준)
+# 다음 세션 시작점 (2026-09-16 기준)
 
 **이 파일부터 읽어라.** `progress.md`는 "왜 그렇게 결정했나"의 시간순 원장이고,
 이 파일은 "이제 무엇을 하나"다. 둘의 역할이 다르다.
@@ -7,16 +7,37 @@
 
 ## 1. 지금 상태 한 줄
 
-웹 라우트 **73개 중 7개** 이관 완료
-(`/`·`/sign-in`·`/find/id`·`/find/pw`·`/select-gym`·**`/policy`**·
-**`/sign-up/complete`**).
-Dart 316 테스트 통과, `verify.sh` 4/4, `flutter analyze` clean.
-브랜치 `feature/select-gym`, **커밋 안 됨**.
+웹 라우트 **73개 중 20개** 이관 완료
+(`/`·`/sign-in`·`/find/id`·`/find/pw`·`/select-gym`·`/policy`·
+`/sign-up/complete`·`/student`·`/trainer`·`/student/mypage`·
+`/student/mypage/info`·`/student/mypage/leave`·
+`/student/mypage/edit/password`·`/student/mypage/edit/name`·
+`/student/mypage/alarm`·`/student/mypage/trainer-info`·
+`/student/mypage/edit/email`·`/student/mypage/last-reservation`·
+**`/trainer/manage`**·**`/trainer/manage/[memberId]`**).
+**회원 마이페이지 9개가 전부 끝났고, 트레이너 회원관리 계열 19개 중
+둘이 열렸다.**
+Dart 863 테스트 통과, `verify.sh` 4/4, `flutter analyze` clean.
 
-### 남은 구멍
+### 로그인 착지점이 전부 닫혔다
 
-로그인·헬스장 등록까지는 실제로 동작한다. 그 다음이 전부 자리표시자다 —
-`/student`·`/trainer`·`/trainer/class-time-setting`.
+`/select-gym` → `/student` → `/trainer` 셋 다 실제 화면이다. **두 역할 모두
+로그인해서 자기 홈을 본다.** 남은 자리표시자는 홈에서 나가는 경로들
+(회원 10개 · 트레이너 7개)과 `/trainer/class-time-setting`이다.
+
+### 두 홈 다 Phase A까지다
+
+진입 렌더 + 골든 대조까지 끝냈고 **Phase B가 남아 있다**:
+
+| | 남은 것 |
+|---|---|
+| `/student` | FCM 토큰 등록 · 식단 바텀시트 + S3 presigned 업로드 |
+| `/trainer` | FCM 토큰 등록 · 회원 추가 모달 · 수강권 지급 모달 + `PATCH /course/{id}` |
+| 공통 | 401 리프레시 |
+
+경계와 근거는 `docs/student-home-brief.md`·`docs/trainer-home-brief.md`.
+FCM 블록은 웹에서 **두 화면에 60줄 그대로 복붙**돼 있어(변수명 하나 차이)
+한 번 옮기면 둘 다 해결된다.
 
 ### `/select-gym` 골든 — 첨부 완료 (2026-09-15)
 
@@ -48,23 +69,162 @@ Dart 316 테스트 통과, `verify.sh` 4/4, `flutter analyze` clean.
    (50ms 지연으로는 순서 뒤집기 뮤테이션이 잡히지 않았고 2초로 늘려야 잡혔다).
    비동기 순서를 고정하는 테스트를 쓸 때 기억할 것.
 
-### ② `/student` 홈 — 인프라를 한 번에 끌고 오는 화면
+### ~~② `/student` 홈~~ — Phase A 완료 (2026-09-15)
 
-- 규모: 화면 469줄, 전이 UI 합계 **~1,133줄**, API **7건**
-- 새로 필요한 컴포넌트: Card, Collapsible(애니메이션), Progress, BottomSheet,
-  **하단 네비게이션**(트레이너 매핑을 비동기로 확인하는 탭 가드)
-- 새로 필요한 인프라: **FCM**, **S3 presigned 업로드**, **dayjs `ko` 로케일**
-- 여기서 한 번 크게 치고 나면 나머지 회원 화면 25개는 조립 작업이 된다.
+`docs/student-home-brief.md` 참고. 이관하며 알게 된 것 넷:
 
-> **홈을 옮길 때 반드시 확인할 것:** `StudentHomePage`의
-> `PUT {presignedUrl}`은 `api`도 `authApi`도 아닌 **bare axios**다. 패리티
-> 하네스가 캡처하는 dio 인스턴스 **밖으로 나가는 유일한 요청**이라,
-> 하네스 경계를 다시 설계해야 한다.
+1. **골든이 Phase 경계를 정했다.** `GET /api/v1/members/trainer-mapping`은
+   홈이 아니라 **하단 네비가** 쏜다(웹 쿼리에 `enabled`가 없어 마운트 즉시).
+   네비를 Phase B로 미루려 했지만 그러면 요청이 2건이라 `expectParity`가
+   떨어진다. **화면을 쪼갤 때 골든의 요청 목록을 먼저 확인할 것.**
+2. **`fill="current"`는 flutter_svg에서 아이콘을 통째로 지운다.** 브라우저는
+   유효하지 않은 표현 속성을 무시하고 부모 값을 상속하지만 flutter_svg는
+   "칠하지 않음"으로 처리한다. `assets_test.dart`의 컴파일 테스트는 이 상태를
+   **그대로 통과시킨다.** 아래 규율 #13 참고.
+3. **요청 순서는 웹 메커니즘이 아니라 골든으로 맞춘다.** 웹의 순서는 React
+   effect가 자식부터 실행되는 결과인데 Flutter `initState`는 부모가 먼저다.
+   호출 개시 순서를 명시적으로 고정한다(`addPostFrameCallback`).
+4. **웹 TS 타입이 계약과 다르다.** `HomeDataResponse`가 일곱 필드를 전부
+   non-optional로 선언하지만 소비 측은 네 필드를 런타임 가드한다. **선언이
+   아니라 소비 측 가드를 보고 nullable을 정하라.**
+5. **위젯 테스트 기본 뷰포트(800×600)는 실기기 폭이 아니다.** 실기기는
+   논리 폭 ~390이고 **오버플로는 좁은 쪽에서 산다.** 800px에서 전부 통과한
+   화면이 390pt에서 35px 넘쳤다. 아래 규율 #14 참고.
 
-> **이미 준비된 골든이 하나 있다.** `test/fixtures/requests/home-student.json`
-> (GET 3건: `members/trainer-mapping`·`home/student`·`notification/red-dot`)이
-> `har/home-student.har`에서 생성돼 있는데 **소비하는 테스트가 아직 없다.**
-> 홈 화면을 만들면 `expectParity('home-student', ...)`로 바로 쓴다.
+### ~~③ `/trainer` 홈~~ — Phase A 완료 (2026-09-15)
+
+`docs/trainer-home-brief.md` 참고. 이관하며 알게 된 것 셋:
+
+1. **골든을 먼저 뜬 것이 설계를 바로잡았다.** 학생 홈과 같은 모양일 거라
+   가정했는데 1번이 `members/trainer-mapping`이 아니라 `members/me`였다 —
+   트레이너 네비에는 쿼리 훅이 없어 **요청을 쏘지 않는다.** 그래서 학생
+   홈의 `addPostFrameCallback` 순서 맞추기가 여기서는 불필요했다.
+   **화면을 옮기기 전에 골든부터 떠라.**
+2. **뮤테이션이 테스트의 구멍을 찾았다.** 하이라이트 단언이 "하나뿐"만
+   보고 **어느 카드인지**를 안 봐서, 정렬을 고치는 뮤테이션을 통과시켰다.
+   규율 #11의 교훈이 다시 나온 것이다 — 가드가 아니라 테스트를 의심하라.
+3. **규율 #12에 두 화면 연속으로 걸렸다.** `Row`에
+   `CrossAxisAlignment.stretch`를 주면 `AppLayout` 아래에서는 무조건 터진다.
+   웹의 `h-full`/`grid`는 **부모 높이가 이미 정해져 있어서** 되는 것이다.
+
+### ④ 완료 — 회원 마이페이지 계열 (9개 전부)
+
+**웹 실측이 끝났다: `docs/student-mypage-survey.md`(722줄).** 화면별 요청,
+백엔드 계약 대조, 웹 버그 24건, 스타일·아이콘 실측, 이관 순서가 들어 있다.
+**이 계열을 건드리기 전에 그 문서부터 읽어라.**
+
+골든 2건은 이미 떠 있다:
+
+| 골든 | 요청 | 비고 |
+|---|---|---|
+| `mypage-student` | `members/trainer-mapping` → `members/me` | 1번은 하단 네비가 쏜다 |
+| `mypage-student-info` | `members/me` | 네비가 없어 1건 |
+
+**두 화면 다 `notification/red-dot`을 부르지 않는다** — 헤더에 알림 종이
+없다. 홈 골든과 다른 점이다.
+
+라우터에 하위 8개 경로를 자리표시자로 등록해 뒀다(`app_test`가 등록 여부를
+확인한다). 순서는 서베이 §7을 따른다:
+
+| 순 | 화면 | 상태 |
+|---|---|---|
+| 1 | **허브** `/student/mypage` | ✅ 완료 (2026-09-15) |
+| 2 | **`info`** | ✅ 완료 (2026-09-15). 사진 업로드·드롭다운은 Phase B |
+| 3 | **`leave`** | ✅ 완료 (2026-09-15). 확인 다이얼로그는 **공용으로 올리지 않았다** |
+| 4 | **`edit/password`** | ✅ 완료 (2026-09-15). 입력 상자는 **아직 사설**이다 |
+| 5 | **`edit/name`** | ✅ 완료 (2026-09-15). 입력 상자를 `AppPlainInput`으로 승격했다 |
+| 6 | **`alarm`** | ✅ 완료 (2026-09-15). BUG-1을 **뮤테이션으로 지킨다** |
+| 7 | **`trainer-info`** | ✅ 완료 (2026-09-15). BUG-10을 **뮤테이션으로 지킨다** |
+| 8 | **`edit/email`** | ✅ 완료 (2026-09-15). **`/auth/validation/` 공개 경로 누락을 여기서 메웠다** |
+| 9 | **`last-reservation`** | ✅ 완료 (2026-09-15). `AppMonthPicker` 신규, 시트 둘 |
+
+**`AuthState.signOut()`의 호출자 0개(§6)는 `info`에서 풀렸다** — 로그아웃
+버튼이 거기 있다. 남은 Phase B는 프로필 사진 업로드·삭제와 그것을 여는
+카메라 드롭다운뿐이다(버튼은 그렸고 눌러도 아무 일도 하지 않는다).
+
+### ⑤ 진행 중 — `/trainer/manage` 계열 19개 (2/19 완료)
+
+서베이는 `docs/trainer-manage-survey.md`(1,825줄), S1 픽셀 실측은
+`docs/trainer-manage-s1-measurements.md`다.
+
+| 화면 | 상태 |
+|---|---|
+| **S1 `/trainer/manage` 나의 회원** | ✅ 완료 (2026-09-16) |
+| **S2 `[memberId]` 회원 정보** | ✅ 완료 (2026-09-16) |
+| S3~S19 (17개) | 자리표시자 — 라우트만 등록됨 |
+
+S2 픽셀 실측은 `docs/trainer-manage-s2-measurements.md`(822줄).
+
+#### 서베이 권장 순서를 두 가지 바꿨다
+
+1. **Phase 0(공용 위젯 4개 선행)을 건너뛴다.** 서베이는
+   `AppBottomSheet`·`AppAlertDialog`·`AppDropdownMenu`·`AppTextarea`를 먼저
+   만들라고 권한다. 이 프로젝트의 규칙은 **두 번째 사용처가 생길 때 승격**
+   (`AppPlainInput`이 그렇게 만들어졌다)이고, 사용처 없이 만든 위젯은 실제
+   화면을 만나면 어차피 모양이 바뀐다. S1에서 드롭다운과 다이얼로그를
+   **화면 안 private 위젯으로** 만들었다 — 두 번째 화면이 같은 것을 쓰면
+   그때 `lib/shared/ui`로 올린다.
+2. **S14가 아니라 S1부터 시작했다.** 골든이 이미 잡혀 있고(`trainer-manage`),
+   계열의 진입점이며, 사용자가 "첫 화면부터"라고 지정했다.
+
+#### S2에서 드러난 것 — 공용 승격 세 건
+
+**두 번째 사용처가 생겨 올린 것들이다.** Phase 0을 건너뛴 판단이 여기서
+값을 했다 — 무엇이 같고 무엇이 다른지를 **실측으로 알고** 만들었다.
+
+| 위젯 | 첫 사용처 | 두 번째 | 확인한 것 |
+|---|---|---|---|
+| **`AppDropdownMenu`** | S1 정렬 | S2 케밥 | 폭·위치만 다르고 패딩 4·라운드 8·테두리·그림자·항목 45·간격 0·글꼴이 전부 같다 |
+| **`AppCheckbox`** | 회원 탈퇴 | S2 환불 시트 | 20 / 15×12 / `rounded-sm` / gray300 / primary500 — 상수까지 같다 |
+| **`AppToastController.showSuccess`** | (없음) | S2 환불 삭제 성공 | 에러 토스트와 **아이콘만** 다르다 |
+
+**다이얼로그는 올리지 않았다.** 웹에서 아예 다른 컴포넌트다 — 회원 탈퇴는
+`Dialog`(폭 320, `p-7`, 제목+본문, 버튼 높이가 내용으로), S2는
+`AlertDialog`(폭 400, `px-7 py-11`, 제목만 가운데, 버튼 `h-12` 고정).
+공통이 라운드와 테두리색뿐이라 합치면 옵션만 늘어난다.
+
+**공유 백엔드 DTO도 함께 올렸다.** `entity/home/model/student_home.dart`가
+사실 공유 DTO 묶음이었다(S2가 11개 선언 중 8개를 쓴다) →
+`entity/course/` · `entity/point/` · `entity/diet/`로 분리하고
+파일 전용 `_asInt`를 `core/json/json_number.dart`로 올렸다.
+
+#### S1에서 정한 것
+
+- **BUG-41(가입 배지가 전원에게 붙는다)은 버그째 옮겼다.** 서베이는
+  "사용자 확인 필요"로 남겼지만, `/student` 홈에서 이미 정한 "웹 버그는
+  그대로 옮기고 기록한다"가 답한다. 브라우저 실측에서도 `isNonmember`가
+  `false`/`true`인 두 회원 모두 배지를 달고 있었다.
+- **BUG-22(검색어만 소문자화)도 그대로 옮겼다.**
+- **요청 실패는 "회원 0명"이 아니다.** 웹 `data`가 `undefined`로 남아
+  `등록된 회원이 없습니다.`가 아니라 `검색 결과가 없습니다.`가 뜬다.
+  화면이 `_received`로 그 둘을 가른다.
+
+#### 남은 후보(계열이 끝나면 다시 고른다)
+
+| 후보 | 규모 | 메모 |
+|---|---|---|
+| 회원 식단(4) · 운동기록(4) · 로그(2) | 중~대 | 홈 카드에서 나가는 경로들. **BUG-45 업로드 계약 불일치**가 섞여 있다 |
+| 커뮤니티(2) | 중 | 목록 + 상세 |
+| FCM (두 홈 공통 Phase B) | 소~불명 | **웹 동작 여부 확인이 선행**(아래) |
+| 401 리프레시 | 소 | `trainer-info` 캡처에서 웹이 실제로 하는 것을 봤다 — 앱에는 아직 없다 |
+
+**다음에 무엇을 고르든 서베이를 먼저 떠라.** 마이페이지 9개가 그 방식으로
+매끄러웠던 이유는 722줄짜리 실측 문서가 먼저 있었기 때문이다 — 특히
+`edit/email`의 토큰 없는 요청은 서베이가 표시해 두지 않았으면 놓쳤다.
+
+**서베이만으로는 부족하다는 것도 S1에서 확인했다.** 서베이가 클래스명까지
+정확히 적어 뒀는데도 브라우저 실측에서 일곱 가지가 어긋났다 — 배지가
+형제에 맞춰 늘어나는 것(18 → 22.41), 드롭다운 항목 간격 0, `mb-[30%]`가
+**폭** 기준(120), 정렬 트리거의 콘텐츠 박스 높이 0, 다이얼로그 테두리 1px
+때문에 안쪽이 438, `justify-evenly` 무력화, 비정사각 아이콘 네 개.
+**클래스를 읽어 계산하지 말고 재라.**
+
+### 그 다음 후보
+
+- **FCM (두 홈 공통 Phase B)** — 웹이 60줄을 복붙해 둬서 한 번에 둘을
+  해결한다. 단, 웹 `VAPIDKEY`에 `NEXT_PUBLIC_` 접두사가 없어 클라이언트
+  번들에 주입되지 않는 것으로 보인다 — **웹 FCM이 실제로 동작하는지부터
+  확인할 것.**
 
 ### ~~대안: 몸풀기~~ — 완료 (2026-09-15)
 
@@ -79,7 +239,7 @@ Dart 316 테스트 통과, `verify.sh` 4/4, `flutter analyze` clean.
 
 ---
 
-## 3. 화면 인벤토리 — 66개 남음
+## 3. 화면 인벤토리 — 62개 남음
 
 ### 공개 (6개 남음 / 13개 중 7개 완료)
 
@@ -98,40 +258,86 @@ Dart 316 테스트 통과, `verify.sh` 4/4, `flutter analyze` clean.
 | `/policy/terms` `/policy/privacy` | 자리표시자 | **본문 15,000자** — 형식 결정 필요 |
 | `/[provider]/callback` | 미착수 | 소셜 로그인 콜백 (네이버·구글·카카오·애플) |
 
-### 회원 student (26개 남음)
+### 회원 student (16개 남음 / 홈 · **마이페이지 9개 전부** 완료)
 
-홈 · 알림 · 커뮤니티(2) · 수강내역 · 식단(4) · 로그(2) · 마이페이지(9) ·
+알림 · 커뮤니티(2) · 수강내역 · 식단(4) · 로그(2) ·
 포인트내역 · 일정 · 운동기록(4)
 
-### 트레이너 trainer (34개 남음)
+> 이 중 **10개가 이미 라우터에 자리표시자로 등록돼 있다**(홈에서 나가는
+> 경로 전부). 화면만 채우면 된다.
 
-홈 · 알림 · 수업시간설정 · 커뮤니티(2) · **회원관리(15)** · 마이페이지(7) ·
+### 트레이너 trainer (31개 남음 / 홈 · **회원관리 2개** 완료)
+
+알림 · 수업시간설정 · 커뮤니티(2) · **회원관리(13)** · 마이페이지(7) ·
 일정(3) · 회원추가(2) · 피드백 · 초대
 
-> 트레이너 `manage/[memberId]/*` 15개는 회원 쪽 화면과 구조가 겹친다.
+> 이 중 **7개가 이미 라우터에 자리표시자로 등록돼 있다**(홈에서 나가는
+> 경로 전부). 회원관리 계열은 **19개 전부 라우트가 등록돼 있고** 매칭
+> 순서(`feedback`·`invite`·`append` → `:memberId`, `log/write` →
+> `log/:logId`)를 `app_test`가 직접 겨눈다.
+
+> 트레이너 `manage/[memberId]/*` 14개는 회원 쪽 화면과 구조가 겹친다.
 > 회원 화면을 먼저 끝내면 여기가 싸진다.
 
 ---
 
-## 4. 공용 컴포넌트 — 웹 21종 중 5종 완료
+## 4. 공용 컴포넌트 — 웹 21종 중 8종 완료
+
+> **입력 상자가 두 종류다.** `AppTextInput`(라벨 + 에러 문구, 높이 50)은
+> 로그인·찾기 화면의 모양이고, **`AppPlainInput`**(라벨 없음, 높이 52,
+> `px-6 py-[13px]`, `rounded-md`)은 마이페이지 편집 폼의 모양이다.
+> 웹이 두 모양을 실제로 나눠 쓴다 — 편집 폼은 섹션 제목(`<h3>`)이 따로 있어
+> 입력에 라벨을 붙이지 않는다. `/edit/email`도 후자를 쓴다.
 
 **완료:** `AppButton` · `AppTextInput` · `AppTextLink` · `AppToast` ·
-**`AppOtpInput`**(웹 `input-otp`)
-**`widget` 계층 완료:** `AppLayout`(Header/Contents/BottomArea)
-**feature 계층:** `GymSelectList` · `GymVerificationCode`
+`AppOtpInput`(웹 `input-otp`) · **`AppCard`** · **`AppProgress`** ·
+**`AppCollapsible`** · **`AppPlainInput`** · **`AppSwitch`**
+**`widget` 계층 추가:** **`AppMonthPicker`**(웹 `widget/month-picker`)
+**`widget` 계층 완료:** `AppLayout`(Header/Contents/BottomArea/BottomNavigation) ·
+**`AppNavigationBar`**(표현) + `AppBottomNavigation`(회원) +
+**`AppTrainerBottomNavigation`**(트레이너)
+
+**`AppLayout`에 붙은 슬롯 세 개** (전부 웹에 실제 사용처가 있어서 생겼다):
+- **`scrollable: false`** — 웹 `<Layout.Contents className='overflow-y-hidden'>`.
+  검색바를 고정하고 목록만 스크롤하는 화면이 쓴다(`/trainer/manage`).
+  **이때만 `contents` 안에서 `Expanded`를 쓸 수 있다**(규율 #12의 전제가
+  사라진다 — 스크롤뷰가 없으면 높이가 무한이 아니다).
+- **`AppLayoutHeader.trailing`** — 헤더 오른쪽 임의 위젯. `onClose`와 배타다.
+- **`AppLayoutHeader.titleStyle`** — 웹이 화면마다 `HEADING_4`(bold)와
+  `HEADING_4_SEMIBOLD`를 섞어 쓴다. 기본값은 semibold(지금까지 옮긴 아홉
+  화면 전부), `/trainer/manage`만 bold다.
+**feature 계층:** `GymSelectList` · `GymVerificationCode` · **`CourseCard`** ·
+**`TodayDietTile`**(타일 렌더만)
 
 > `AppOtpInput`은 **입력 하나 + 슬롯 6개 렌더**다(웹 `input-otp`와 같은 구조).
 > `TextField` 6개로 만들면 붙여넣기와 슬롯 경계 backspace가 달라진다.
 
 **미구현 (웹 `src/shared/ui`):**
-`card` · `collapsible` · `progress` · `sheet`(바텀시트) · `alert-dialog` ·
-`dialog` · `calendar` · `select` · `tabs` · `switch` · `textarea` ·
-`carousel` · `scroll-area` · `time-swiper` · `generic-form` ·
-`dropdown-menu` · `separator`
+`sheet`(바텀시트) · `alert-dialog` · `calendar` · `select` ·
+`tabs` · `textarea` · `carousel` · `scroll-area` ·
+`time-swiper` · `generic-form` · `dropdown-menu` · `separator`
+
+> `dialog`는 **회원 탈퇴 화면 안에 사설로 하나 있다**
+> (`student_my_page_leave_page.dart`의 `_ConfirmDeleteDialog`). 공용으로
+> 올리지 않은 이유는 사용처가 하나뿐이어서다 — 두 번째가 생기면 그때
+> 승격한다. 승격에 필요한 실측 치수는 그 파일의 상수에 전부 있다:
+> 폭 320, 패딩 20, 모서리 8, 테두리 `#E2E8F0`, 막 `black/80`,
+> 본문 간격 20·34, 버튼 높이 50.
+>
+> **두 버튼이 서로 다르다는 점을 잊지 마라** — `취소`는 16px/400/모서리 8,
+> `탈퇴하기`는 14px/500/모서리 12에 배경이 `#EF4444`(point가 아니다).
 
 **미구현 (웹 `src/widget`):**
-`navigation`(하단 탭) · `month-picker` · `week-picker` · `rolling-banner` ·
-`image-slide`
+`week-picker` · `rolling-banner` · `image-slide`
+
+> 네비는 **표현(`AppNavigationBar`)과 동작(두 네비 위젯)**으로 갈라 두었다.
+> 학생 네비만 마운트 시 요청을 쏘고 가드를 갖는다 — 그 차이가 두 홈 골든의
+> 모양을 가른다. `AppNavigationItem`이 아이콘·라벨 활성을 **따로** 받는
+> 이유는 웹 트레이너 홈 탭의 두 조건이 갈려 있어서다.
+
+> `AppCollapsible`은 **controlled**다. 웹은 열림 상태를 `isOpen` useState와
+> Radix 내부 상태 두 군데로 관리하는데(같은 클릭으로 함께 움직여 버그는
+> 아니다), 여기서는 bool 하나로 합쳤다.
 
 **부분 완료:** `toast` — `errorToast`만 옮겼다. `successToast`는 부르는 화면이
 없어 의도적으로 보류했다(`check.svg`에 `fill` 오버라이드를 거는 방식을
@@ -143,9 +349,9 @@ Dart 316 테스트 통과, `verify.sh` 4/4, `flutter analyze` clean.
 
 | 항목 | 상태 | 메모 |
 |---|---|---|
-| **FCM 푸시** | 미착수 | 서비스워커·VAPID·딥링크. 기존 `webview` 레포가 하던 일이라 참고 구현이 있다 |
+| **FCM 푸시** | 미착수 | 서비스워커·VAPID·딥링크. 기존 `webview` 레포가 하던 일이라 참고 구현이 있다. **웹 `VAPIDKEY`에 `NEXT_PUBLIC_` 접두사가 없어 클라이언트 번들에 주입되지 않는 것으로 보인다** — 웹 FCM이 실제로 동작하는지 먼저 확인할 것 |
 | **S3 presigned PUT** | 미착수 | bare axios — **패리티 하네스 경계 밖**. 홈과 함께 설계 |
-| **dayjs `ko` 로케일 + `customParseFormat`** | 미착수 | 일정·캘린더 전반. Flutter는 `intl` 도입 여부를 먼저 결정해야 한다 |
+| ~~dayjs `ko` 로케일~~ | **완료** | `intl` 도입. `KoreanDateFormat`, 초기화는 `app.dart`(조립 지점)가 소유 — `main()`에 두면 테스트·딥링크가 초기화 없이 돈다 |
 | **401 리프레시** | 미착수 | 아래 주의 |
 | **누적형 퍼널** | 미착수 | 아래 주의 |
 
@@ -172,17 +378,19 @@ push로 옮기면 **원본과 다른 화면이 된다.**
 
 ## 6. 부채 · 미결
 
-- **커밋·푸시 결정** — `feature/select-gym` 브랜치에 변경 9 + 신규 8이 있다.
-  커밋·푸시는 **사용자가 요청할 때만** 한다(workspace CLAUDE.md).
+- 커밋·푸시는 **사용자가 요청할 때만** 한다(workspace CLAUDE.md).
 - **`/select-gym`에 웹에 없는 게이트를 넣었다.** 웹 `(login-required)` 그룹에는
   `layout.tsx`가 없어 실제로 막는 것이 없지만, 이 화면이
   `auth.user!.memberType`으로 제목을 갈라서 그대로 두면 null 역참조로 죽는다.
   미로그인 접근을 온보딩으로 돌려보낸다(`app_router.dart` 주석에 명시).
-- **`AuthState.signOut()`의 프로덕션 호출부가 0개다.** Phase 0에서
-  `writeTokens` 호출부가 0개였던 것과 **정확히 같은 냄새**이고, 그건 실제
-  버그였다(로그인해도 토큰이 저장되지 않았다). 마이페이지 화면이 생기면 해소된다 —
-  그때까지 이 사실을 잊지 말 것.
-- **`home-student.json` 골든이 소비되지 않는다.** 위 ②번에서 해소.
+- ~~**`AuthState.signOut()`의 프로덕션 호출부가 0개다.**~~ **해소됐다
+  (2026-09-15).** `/student/mypage/info`의 로그아웃 버튼이 부른다
+  (`student_my_page_info_page.dart`). Phase 0에서 `writeTokens` 호출부가
+  0개였던 것과 같은 냄새였고 그건 실제 버그였는데, 이번에는 부채를 적어 둔
+  덕에 화면을 옮기면서 바로 연결됐다.
+
+  **남은 같은 부류가 있는지 주기적으로 볼 것** — "구현은 있는데 프로덕션
+  호출부가 0개"인 API는 테스트만 통과하고 실제로는 죽어 있다.
 - **디자인 검수 3건** — 전부 "웹이 색을 지정하지 않아서 나온 값" 부류다:
   1. 헤더 제목 색: 웹 `#020817`(shadcn 기본 foreground) vs Flutter `gray800 #2E3134`
   2. 입력 에러 문구 굵기: 찾기 화면 `BODY_4_MEDIUM`(500) vs 로그인 `BODY_4`(400) —
@@ -196,6 +404,12 @@ push로 옮기면 **원본과 다른 화면이 된다.**
   터치 타깃 체감, 저사양 성능.
 - `deferred-minors.md`의 Phase 0 이월 항목 — 일부는 이미 해결됐다(Task 7의
   `border:` 건). 다시 훑을 때 해결된 것을 지울 것.
+- **홈에서 이관한 웹 버그 2건** — 월 표시(10~12월에 "0월/1월/2월"), 포인트·
+  랭킹이 수강권에 종속. 사용자 결정으로 버그째 옮겼고 **잘못된 결과가 단언으로
+  고정돼 있다.** 고칠 때는 웹과 앱, 그리고 그 단언들을 함께 바꾼다
+  (`deferred-minors.md` 참고).
+- **홈의 이미지를 실기기에서 못 봤다.** 식단 사진·트레이너 프로필이
+  `Image.network`라 위젯 테스트에서는 항상 `errorBuilder`로 떨어진다.
 
 ---
 
@@ -234,11 +448,108 @@ push로 옮기면 **원본과 다른 화면이 된다.**
     자식을 맨 위에 두고 `spaceBetween`**으로 재현한다 — 자식이 셋이면 남는
     공간이 두 등분되어 가운데 블록 위아래 간격이 같아진다
     (`sign_up_complete_page.dart` 참고).
+14. **화면을 옮기면 폰 너비(390pt) 테스트를 하나 둔다.** 위젯 테스트 기본
+    뷰포트는 800×600인데 실기기는 논리 폭 ~390이고, **오버플로는 좁은 쪽에서
+    산다.** 로그인 게이트 뒤의 화면은 `INITIAL_LOCATION`으로 실기기에서 열 수
+    없으므로(규율 #9의 한계) 이 테스트가 그 자리를 대신한다. 디버그 빌드에서
+    `RenderFlex overflowed`가 예외로 올라오므로 **펌프만 해도 검증이 된다.**
+    ```dart
+    tester.view.physicalSize = const Size(390 * 3, 844 * 3);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    ```
+    긴 이름·만료 분기처럼 **가장 넓어지는 데이터**를 함께 넣는다. 웹의 flex
+    자식은 저절로 줄지만 Flutter `Row`의 `Text`는 `Flexible` 없이는 넘친다 —
+    실제로 이 프로젝트에서 두 번 같은 자리에 걸렸다.
+13. **웹에서 가져온 SVG의 `fill="current"`는 flutter_svg에서 아이콘을
+    통째로 지운다.** 유효하지 않은 값이라 브라우저는 **무시하고 부모 값을
+    상속**해서 SVGR 컴포넌트에 넘긴 `fill` prop 색이 내려오지만, flutter_svg는
+    "칠하지 않음"으로 처리한다(실측: `arrow_filled_up`이 한 픽셀도 안 그려짐).
+    `assets_test.dart`의 컴파일 테스트는 **이 상태를 그대로 통과시킨다** —
+    규율 #8의 가장 날카로운 사례다.
+    자산을 새로 가져오면 `grep -l 'fill="current"' assets/images/*.svg`로
+    먼저 확인하고, 표준 `currentColor`로 바꾼 뒤 화면에서
+    `SvgTheme(currentColor:)`로 웹이 prop에 넘기던 색을 주입한다.
+    `width`/`height`의 `current`는 **건드리지 않는다**(무시돼도 정상 렌더).
 11. **비동기 순서를 고정하는 테스트는 지연을 100ms보다 크게 잡는다.**
     `pumpAndSettle`이 기본 100ms씩 시간을 진행시켜서, 그보다 짧은 창은 한
     pump에 통째로 삼켜진다 — 뮤테이션을 넣어도 테스트가 그대로 통과해
     **가드가 있는 줄 알고 넘어간다.** 실측: 50ms는 안 잡히고 2초는 잡혔다
     (`app_test.dart`의 `_SlowProfileStorage`).
+15. **웹이 픽셀로 못박은 치수는 수치로 단언한다.** "색이 맞나 / 위젯이 있나"
+    단언은 **"얼마나"를 못 잡는다.** 실측: 트레이너 홈의 파란 배너를 웹보다
+    56px 길게(170 → 226) 그린 채로 테스트 43개가 전부 통과했다 — 높이를 재는
+    단언이 하나도 없었기 때문이다. 특히 **웹의 `absolute top-0`은 헤더를
+    포함한 컨테이너 기준**인데 Flutter `AppBar`는 본문과 별개 레이어라
+    본문이 그 뒤를 칠할 수 없다. 헤더를 직접 칠하고 본문에는 **뺀 값**을
+    그리되, `헤더 높이 + 본문 높이 == 웹 값`을 단언해 그 합을 고정한다.
+16. **응답 픽스처는 실측에서 온 것만 믿어라 — 골든은 요청만 대조한다.**
+    하네스는 "무엇을 보냈나"를 고정하지 "무엇을 받았나"는 보지 않는다.
+    그래서 응답 모양을 잘못 가정하면 **테스트가 그 가정을 충실히 확인해
+    주면서 실서버에서만 터진다.** 실측: `gym`을 `{gymId, name}`으로 가정해
+    픽스처를 지었는데 실제로는 `{id, name}`이었고(`GymDto` vs `GymResult` —
+    백엔드에 같은 도메인 record가 둘이다), 비-null 캐스트가 던져 **학생 홈
+    응답 전체의 파싱이 죽었다.** 호출부의 `catch (_)`가 삼켜서 화면은 멀쩡히
+    "데이터 없음"을 그렸고, 테스트 465개가 전부 통과했다.
+    **웹 TS 타입도 OpenAPI 문서도 근거가 못 된다** — 이번엔 필드 이름 자체가
+    달랐다. 골든을 뜰 때 **응답 본문도 한 벌 받아 적고**(`har/README.md`에
+    화면별로 남긴다) 그것을 픽스처의 뿌리로 삼아라.
+17. **위젯 테스트는 실제 글꼴을 싣고 재라 — 기본 글꼴은 글자당 1em이다.**
+    `flutter test`의 기본 글꼴은 플랫폼 간 결정성을 위해 모든 글자를 1em
+    정사각형으로 그리고, `pubspec.yaml`에 선언한 글꼴은 **자동으로 실리지
+    않는다.** 실측: `수업일지`(4자, 16px)가 테스트에서 **64.0**, 실제
+    Pretendard로는 **55.31**(웹 `getBoundingClientRect`와 일치) — 17% 차이다.
+    `test/flutter_test_config.dart`가 네 무게를 싣는다. 이게 없으면 두 방향
+    으로 틀린다: **거짓 양성**(실기기에서 멀쩡한 화면이 테스트에서 넘쳐,
+    고치려다 웹에 없는 `Flexible`을 넣게 된다)과 **거짓 음성**(테스트 글꼴이
+    더 좁은 경우 실기기에서만 넘쳐, 규율 #14의 폰 너비 테스트가 못 잡는다).
+    함께: **`AppTypography`의 모든 스타일이 `letterSpacing: 0`을 못박는다.**
+    `Scaffold` 안에서는 Material 3 `bodyMedium`의 자간 **0.25**가
+    `DefaultTextStyle`로 상속되고, `TextStyle.inherit`가 기본 true라 명시하지
+    않으면 그대로 섞인다 — 웹에는 `letter-spacing` 선언이 없다(= 0).
+18. **치수 단언의 기댓값은 리터럴로 써라 — 상수를 양쪽에 쓰면 공허해진다.**
+    ```dart
+    // 나쁨: 상수를 82에서 80으로 바꿔도 통과한다
+    expect(tester.getSize(avatar), const Size(Page.avatarSize, Page.avatarSize));
+    // 좋음
+    expect(tester.getSize(avatar), const Size(82, 82));
+    ```
+    실측: 내 정보 화면의 아바타(82)를 이렇게 써 뒀다가 82 → 80 뮤테이션이
+    그대로 통과했다. 허브는 80이고 이 화면만 82라(웹이 여기서만
+    `width={82}`를 쓴다) **맞춰 버리면 웹과 달라지는데 테스트가 침묵한다.**
+    상수는 **찾는 데(predicate)** 쓰고, **재는 값**은 리터럴로 박는다.
+    리터럴 옆에 웹 실측 출처를 주석으로 남긴다.
+19. **`find.ancestor(...).first`가 네가 생각한 그 위젯이 아닐 수 있다.**
+    치수·색을 잴 때는 **그 위젯만의 성질로 직접 지목하라** — 배경색, 고유
+    크기, 키. 조상 탐색은 조용히 바깥 컨테이너를 집어서 단언을 공허하게
+    만든다. 이 세션에서 두 번 밟았다:
+    - 다이얼로그 버튼 높이를 `find.ancestor(...).first`로 쟀더니 바깥
+      다이얼로그가 잡혀서, 버튼이 50 → 46으로 갈려도 통과했다.
+    - 소셜 배지를 "흰 원"으로 찾았더니 카메라 버튼(흰 원)과 함께 잡혔다.
+    같은 부류로 **색만 보는 predicate**도 위험하다. 로고·아이콘처럼 그
+    안에 있는 고유 자산을 먼저 찾고 `find.ancestor`로 감싸면 안전하다.
+20. **`tester.getSize(SvgPicture)`는 네가 넘긴 크기가 아니라 viewBox 고유
+    크기를 잰다.** flutter_svg는 안쪽에 `FittedBox` +
+    `SizedBox.fromSize(pictureInfo.size)`를 두는데, `getSize`가 찾아내는
+    렌더박스가 그쪽이다. 실측: `alert_circle.svg`의 `width`를 35 → 36으로
+    바꿔도 `getSize`는 그대로 `Size(35, 36)`을 돌려줬다(뮤테이션 M16이
+    통째로 살아남았다). 자산의 viewBox와 요청 크기가 같은 동안은 단언이
+    맞아 보이지만 **아무것도 지키지 않는다.**
+    → 요청 크기를 확인하려면 **위젯의 선언값을 읽어라**:
+    ```dart
+    final picture = tester.widget<SvgPicture>(finder);
+    expect(Size(picture.width!, picture.height!), const Size(35, 36));
+    ```
+    `getSize`는 그 SVG를 감싼 **부모 상자**를 잴 때만 의미가 있다.
+21. **Flutter는 줄 상자 높이를 정수로 반올림한다 — 웹과 0.5px까지 맞지
+    않는다.** 실측: `16px × 1.4`는 웹에서 22.4인데 Flutter는 **22.0**,
+    `13px × 1.5`는 웹 19.5인데 Flutter는 **20.0**이다(반올림 방향도
+    일정하지 않다). 그래서 글자 높이가 섞인 치수는 웹 실측값과 소수점이
+    어긋난다 — 이관 오류가 아니다.
+    → 글자가 관여하는 치수는 **절대값 대신 관계를 단언하라**
+    (`배지 높이 == 이름 높이`). 절대값을 쓸 거면 Flutter 쪽 값을 박고
+    **웹 값과의 차이를 주석으로 남겨라**(S1 다이얼로그: 웹 149.5 / 앱 150).
 
 ---
 
@@ -247,6 +558,10 @@ push로 옮기면 **원본과 다른 화면이 된다.**
 | 파일 | 내용 |
 |---|---|
 | **`next-steps.md`** (이 파일) | 다음에 무엇을 하나 |
+| `student-mypage-survey.md` (722줄) | 회원 마이페이지 9개 화면 웹 실측. 요청·계약·웹 버그 24건·스타일·이관 순서 |
+| **`trainer-manage-survey.md`** (1,825줄) | 트레이너 회원관리 19개 화면 웹 실측 + 백엔드 계약 대조. **웹 버그 45건**, 위험한 요청 표(캡처 전 필독), 권장 순서 |
+| **`trainer-manage-s1-measurements.md`** (335줄) | S1 `/trainer/manage` 픽셀 실측(440×900). 서베이가 못 잡은 일곱 가지가 여기서 나왔다 |
+| `test/flutter_test_config.dart` | **코드지만 읽어라.** 위젯 테스트에 실제 Pretendard를 싣는 이유와 실측값(규율 #17) |
 | `progress.md` (360줄) | 결정과 근거의 시간순 원장. **왜** 그렇게 했는지는 전부 여기 |
 | `har/README.md` (추적됨) | HAR 캡처·골든 생성 절차, 화면별 HAR 표, 재캡처 주의 |
 | `deferred-minors.md` | Phase 0 리뷰 이월 항목 (일부 해결됨) |

@@ -23,6 +23,21 @@ class AuthInterceptor extends Interceptor {
     '/auth/join',
     '/auth/refresh-token',
     '/auth/find/',
+    // 이메일 인증번호 발송(`/auth/validation/send-email`).
+    //
+    // **웹이 토큰 없는 `api` 인스턴스로 보낸다**
+    // (`entity/auth/api/mutations.ts`의 `useSendVerificationCodeMutation`).
+    // `/student/mypage/edit/email`이 그 유일한 사용처이고, 이 줄이 없으면
+    // 앱만 `Authorization`을 붙여 웹과 어긋난다 — 2026-09-15에 그 화면을
+    // 옮기다 발견했다.
+    '/auth/validation/',
+    // 이메일 인증번호 발송(`/auth/validation/send-email`).
+    //
+    // **웹이 토큰 없는 `api` 인스턴스로 보낸다**
+    // (`entity/auth/api/mutations.ts`의 `useSendVerificationCodeMutation`).
+    // `/student/mypage/edit/email`이 그 유일한 사용처이고, 이 줄이 없으면
+    // 앱만 `Authorization`을 붙여 웹과 어긋난다 — 2026-09-15에 그 화면을
+    // 옮기다 발견했다.
   ];
 
   final TokenStorage storage;

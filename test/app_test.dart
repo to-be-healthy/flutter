@@ -17,6 +17,21 @@ import 'support/auth_fakes.dart';
 /// 라우팅 테스트는 화면이 실제로 뜨는지를 보는데, `/select-gym` 같은 화면은
 /// 뜨자마자 요청을 쏜다. 전송 계층을 막지 않으면 실제 네트워크를 때리려다
 /// 느려지고 흔들린다.
+/// `/student`에 도착했는지 보는 표식.
+///
+/// 예전에는 자리표시자의 제목('회원 홈')이었다. 실제 화면이 들어오면서
+/// 그 제목이 사라졌으므로, **응답 내용과 무관하게 늘 그려지는** 카드
+/// 제목을 쓴다 — 웹도 "개인 운동 기록" 카드만 조건 없이 렌더한다.
+const String _studentHomeMarker = '개인 운동 기록';
+
+/// `/trainer`에 도착했는지 보는 표식.
+///
+/// 예전에는 자리표시자의 제목('트레이너 홈')이었다. 실제 화면이 들어오면서
+/// 그 제목이 사라졌고, **그대로 두면 `findsNothing` 단언이 공허해진다** —
+/// 트레이너 홈에 실제로 착지해도 그 문자열은 없으므로 통과한다.
+/// 응답 내용과 무관하게 늘 그려지는 섹션 제목을 쓴다.
+const String _trainerHomeMarker = '오늘의 수업';
+
 class _StubAdapter implements HttpClientAdapter {
   /// 등록(POST) 응답 상태. 200이 아니면 dio가 던진다.
   int registerStatus = 200;
@@ -28,9 +43,27 @@ class _StubAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     final isPost = options.method.toUpperCase() == 'POST';
+    // **회원 상세만 따로 답한다.** 이 화면은 `{memberInfo && ...}`라
+    // 응답이 파싱되지 않으면 **헤더까지 통째로 비어** 라우트 도착을
+    // 확인할 표식이 하나도 남지 않는다. 다른 화면들은 목록 응답으로도
+    // 헤더가 뜨므로 아래 기본 응답으로 충분하다.
+    final isMemberDetail = RegExp(
+      r'/api/v1/trainers/members/[^/]+$',
+    ).hasMatch(options.path);
     return ResponseBody.fromString(
       isPost
           ? '{"status":200,"message":"성공","data":{"id":1,"name":"건강해짐 강남점"}}'
+          : isMemberDetail
+          ? '{"status":200,"message":"성공","data":{'
+                '"memberId":3,"name":"테스트회원","nickName":null,'
+                '"fileUrl":null,"memo":null,"ranking":999,'
+                '"lessonDt":null,"lessonStartTime":null,'
+                '"diet":{"dietId":null,"breakfast":{"fast":false,"dietFile":null},'
+                '"lunch":{"fast":false,"dietFile":null},'
+                '"dinner":{"fast":false,"dietFile":null}},'
+                '"course":null,"point":null,'
+                '"rank":{"ranking":999,"lastMonthRanking":999,"totalMemberCnt":2},'
+                '"gym":{"id":1,"name":"건강해짐 강남점"},"isNonmember":false}}'
           : '{"status":200,"message":"성공","data":['
                 '{"gymId":1,"name":"건강해짐 강남점"},'
                 '{"gymId":2,"name":"건강해짐 판교점"}]}',
@@ -47,13 +80,20 @@ class _StubAdapter implements HttpClientAdapter {
 
 /// 저장소를 페이크로 바꾼 앱. 실제 구현은 플랫폼 채널을 타서 테스트에서
 /// 뜨지 않는다.
+/// [key]를 주면 **앱이 통째로 새로 만들어진다.**
+///
+/// 한 테스트 안에서 `initialLocation`만 바꿔 다시 펌프할 때 필요하다 —
+/// 키가 없으면 Flutter가 기존 `State`를 재사용하고, 라우터는 `initState`에서
+/// 한 번만 만들어지므로 **새 `initialLocation`이 무시된다.**
 Widget _app({
   FakeTokenStorage? tokens,
   FakeAuthProfileStorage? profile,
   String initialLocation = AppRoutes.onboarding,
   HttpClientAdapter? adapter,
+  Key? key,
 }) {
   return GeonganghaejimApp(
+    key: key,
     baseUrl: 'https://example.test',
     tokenStorage: tokens ?? FakeTokenStorage(),
     profileStorage: profile ?? FakeAuthProfileStorage(),
@@ -111,6 +151,16 @@ const AuthUser _student = AuthUser(
   gymId: 1,
 );
 
+/// 헬스장까지 있는 트레이너. 회원관리 화면들이 요구하는 상태다 —
+/// `gymId`가 없으면 라우터가 `/select-gym`으로 돌려보낸다.
+const AuthUser _trainer = AuthUser(
+  memberId: 5,
+  name: '김트레이너',
+  userId: 'trainer0',
+  memberType: 'TRAINER',
+  gymId: 1,
+);
+
 void main() {
   group('세션 복원', () {
     testWidgets('저장된 세션이 없으면 온보딩(역할 선택)을 띄운다', (tester) async {
@@ -133,7 +183,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('회원 홈'), findsOneWidget);
+      expect(find.text(_studentHomeMarker), findsOneWidget);
       expect(find.text('트레이너로 시작'), findsNothing);
     });
 
@@ -265,7 +315,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text(_selectGymHeadline), findsOneWidget);
-      expect(find.text('회원 홈'), findsNothing);
+      expect(find.text(_studentHomeMarker), findsNothing);
     });
 
     testWidgets('헬스장이 있으면 홈으로 간다 (위 규칙이 과하지 않다)', (tester) async {
@@ -277,7 +327,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('회원 홈'), findsOneWidget);
+      expect(find.text(_studentHomeMarker), findsOneWidget);
       expect(find.text(_selectGymHeadline), findsNothing);
     });
 
@@ -298,7 +348,7 @@ void main() {
       await tester.tap(find.text('다음'));
       await tester.pumpAndSettle();
 
-      expect(find.text('회원 홈'), findsOneWidget);
+      expect(find.text(_studentHomeMarker), findsOneWidget);
       expect(find.text(_selectGymHeadline), findsNothing);
     });
 
@@ -321,7 +371,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(profile.user!.gymId, 2);
-      expect(find.text('회원 홈'), findsOneWidget);
+      expect(find.text(_studentHomeMarker), findsOneWidget);
     });
 
     // **순서 제약을 고정한다.** 프로필 저장보다 이동이 먼저 일어나면,
@@ -342,7 +392,7 @@ void main() {
       await tester.tap(find.text('다음'));
       await tester.pumpAndSettle();
 
-      expect(find.text('회원 홈'), findsOneWidget);
+      expect(find.text(_studentHomeMarker), findsOneWidget);
       expect(find.text(_selectGymHeadline), findsNothing);
     });
 
@@ -367,7 +417,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('수업시간 설정'), findsOneWidget);
-      expect(find.text('트레이너 홈'), findsNothing);
+      expect(find.text(_trainerHomeMarker), findsNothing);
     });
 
     // **명시적 이탈이다.** 웹 `(login-required)` 그룹에는 `layout.tsx`가 없어
@@ -548,8 +598,217 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('회원 홈'), findsOneWidget);
-      expect(find.text('트레이너 홈'), findsNothing);
+      expect(find.text(_studentHomeMarker), findsOneWidget);
+      expect(find.text(_trainerHomeMarker), findsNothing);
+    });
+  });
+
+  // **화면 테스트는 라우터를 끼우지 않는다**(규율 #3). 그래서 화면이
+  // `context.go('/student/mypage/edit/name')`을 부를 수 있는지는 화면
+  // 테스트가 아니라 여기서만 드러난다 — 등록되지 않은 경로로 가면
+  // go_router가 에러 화면을 띄운다.
+  //
+  // `edit/*` 셋은 특히 **가정 위에 서 있다**: 웹에 `edit/page.tsx`가 없어
+  // `/student/mypage/edit`는 화면이 아니고, go_router 자식 경로에
+  // 슬래시를 넣어 두 세그먼트를 한 번에 잡게 했다. 그 가정이 틀리면
+  // 여기가 먼저 깨진다.
+  group('마이페이지 하위 경로가 전부 등록돼 있다', () {
+    // 값은 **그 화면에 도착했음을 증명하는 표식**이다. 자리표시자인 동안은
+    // 그 제목이지만, 실제 화면으로 바뀌면 제목이 사라지므로 함께 바꾼다 —
+    // 안 바꾸면 `findsOneWidget`이 깨져서 바로 드러난다(홈 두 화면에서
+    // `findsNothing` 단언이 조용히 공허해졌던 것과 반대 방향이라 안전하다).
+    const routes = <String, String>{
+      // 실제 화면. 응답과 무관하게 늘 그려지는 하단 액션을 표식으로 쓴다.
+      AppRoutes.studentMyPageInfo: '로그아웃',
+      // 실제 화면. '알림 설정'은 자리표시자 제목과 같아 구분이 안 되므로
+      // 실화면에만 있는 행 라벨을 쓴다.
+      AppRoutes.studentMyPageAlarm: '앱 푸쉬 알림',
+      // 실제 화면. app_test 의 스텁은 이 경로에 리스트를 돌려주므로
+      // 매핑 없음으로 파싱돼 **빈 상태 문구**가 표식이 된다.
+      AppRoutes.studentMyPageTrainerInfo: '등록된 트레이너가 없습니다.',
+      // 실제 화면. 헤더 제목('지난 예약')은 자리표시자와 같아 구분이 안 되고,
+      // app_test 의 스텁이 리스트를 돌려주므로 `reservations`가 null로
+      // 파싱돼 **빈 상태 문구**가 표식이 된다.
+      AppRoutes.studentMyPageLastReservation: '지난 예약이 없습니다.',
+      // 실제 화면. **헤더 제목('회원 탈퇴')을 쓰면 안 된다** — 자리표시자도
+      // 같은 제목이라 둘을 구분하지 못한다. 실화면에만 있는 버튼을 쓴다.
+      AppRoutes.studentMyPageLeave: '계정 삭제하기',
+      // 실제 화면. 헤더 제목('이름 변경')은 자리표시자와 같아 구분이 안 된다.
+      AppRoutes.studentMyPageEditName: '변경하실 이름을 입력해주세요.',
+      // 실제 화면. 헤더 제목은 자리표시자와 같아 구분이 안 된다.
+      AppRoutes.studentMyPageEditEmail: '변경하실 이메일을 입력해주세요.',
+      // 실제 화면. 헤더 제목('비밀번호 변경')은 자리표시자와 같아서
+      // 구분이 안 된다 — 실화면에만 있는 1단계 문구를 쓴다.
+      AppRoutes.studentMyPageEditPassword: '현재 비밀번호를 입력해주세요.',
+    };
+
+    routes.forEach((route, title) {
+      testWidgets('$route 로 바로 들어갈 수 있다', (tester) async {
+        await tester.pumpWidget(
+          _app(
+            tokens: FakeTokenStorage(access: 'a', refresh: 'r'),
+            profile: FakeAuthProfileStorage(user: _student),
+            initialLocation: route,
+          ),
+        );
+        await tester.pumpAndSettle();
+        // 부모 라우트(`/student/mypage`)도 함께 세워지고 그 하단 네비가
+        // 요청을 쏜다. dio의 타임아웃 타이머가 정리될 때까지 한 번 더 돌린다.
+        await tester.pumpAndSettle(const Duration(seconds: 1));
+
+        // 에러 화면이 아니라 그 화면에 도착했는지 본다. 자리표시자가 실제
+        // 화면으로 바뀌면 이 제목이 사라지므로, 그때 표식을 함께 바꾼다
+        // (홈 두 화면에서 이미 겪은 공허한 단언의 원인이다).
+        expect(
+          find.text(title),
+          findsOneWidget,
+          reason: '$route 가 등록되지 않았거나 다른 화면으로 튕겼다',
+        );
+        expect(tester.takeException(), isNull);
+      });
+    });
+  });
+
+  group('/trainer/manage 는 실제 화면이다', () {
+    testWidgets('자리표시자가 아니라 나의 회원 화면이 뜬다', (tester) async {
+      await tester.pumpWidget(
+        _app(
+          tokens: FakeTokenStorage(access: 'a', refresh: 'r'),
+          profile: FakeAuthProfileStorage(user: _trainer),
+          initialLocation: AppRoutes.trainerManage,
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 1));
+
+      // 자리표시자 제목은 '회원 관리'였다 — 실화면의 제목은 '나의 회원'이라
+      // 둘이 구분된다(마이페이지 표식들이 제목 충돌로 공허해졌던 것과 반대).
+      expect(find.text('나의 회원'), findsOneWidget);
+      expect(find.text('회원 관리'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('조립된 TrainerApi 로 실제 요청이 나간다', (tester) async {
+      await tester.pumpWidget(
+        _app(
+          tokens: FakeTokenStorage(access: 'a', refresh: 'r'),
+          profile: FakeAuthProfileStorage(user: _trainer),
+          initialLocation: AppRoutes.trainerManage,
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 1));
+
+      // 조립 지점이 `TrainerApi`를 만들어 넘겼는지는 화면 테스트로는
+      // 확인되지 않는다 — 거기서는 테스트가 직접 주입하기 때문이다.
+      // 로딩이 끝나 분기 중 하나가 그려졌다는 것이 그 배선의 증거다.
+      expect(find.byType(TextField), findsOneWidget);
+      expect(
+        find.text('등록된 회원이 없습니다.').evaluate().length +
+            find.text('검색 결과가 없습니다.').evaluate().length,
+        1,
+      );
+    });
+  });
+
+  // 마이페이지 하위와 같은 이유로 여기서만 드러난다(규율 #3).
+  //
+  // 이 계열은 **매칭 순서 함정이 두 단계**다:
+  // 1. `feedback`·`invite`·`append`가 `:memberId`보다 먼저여야 한다.
+  // 2. 그 아래에서 `log/write`가 `log/:logId`보다 먼저여야 한다.
+  //
+  // 순서가 틀리면 에러 화면이 아니라 **엉뚱한 화면이 파라미터를 받아** 뜬다.
+  // 그래서 "도착했는가"만 보지 않고 **파라미터로 잡히지 않았는가**도 본다.
+  group('트레이너 회원관리 하위 경로가 전부 등록돼 있다', () {
+    final routes = <String, String>{
+      AppRoutes.trainerManageFeedback: '피드백 작성',
+      AppRoutes.trainerManageInvite: '회원 초대',
+      AppRoutes.trainerManageAppend: '회원 추가',
+      AppRoutes.trainerManageAppendMember(7): '회원 추가 상세',
+      // 실제 화면. 자리표시자 제목('회원 상세')과 달리 '회원 정보'다.
+      AppRoutes.trainerManageMember(3): '회원 정보',
+      AppRoutes.trainerManageMemberCourseHistory(3): '수강 내역',
+      AppRoutes.trainerManageMemberPointHistory(3): '포인트 내역',
+      AppRoutes.trainerManageMemberReservation(3): '예약 내역',
+      AppRoutes.trainerManageMemberEditMemo(3): '메모 수정',
+      AppRoutes.trainerManageMemberEditNickname(3): '닉네임 수정',
+      AppRoutes.trainerManageMemberLog(3): '수업 일지',
+      AppRoutes.trainerManageMemberLogWrite(3): '수업 일지 작성',
+      AppRoutes.trainerManageMemberLogDetail(3, 9): '수업 일지 상세',
+      AppRoutes.trainerManageMemberLogEdit(3, 9): '수업 일지 수정',
+      AppRoutes.trainerManageMemberDiet(3): '식단',
+      AppRoutes.trainerManageMemberDietDetail(3, 5): '식단 상세',
+      AppRoutes.trainerManageMemberWorkout(3): '운동 기록',
+      AppRoutes.trainerManageMemberWorkoutDetail(3, 5): '운동 기록 상세',
+    };
+
+    routes.forEach((route, title) {
+      testWidgets('$route 로 바로 들어갈 수 있다', (tester) async {
+        await tester.pumpWidget(
+          _app(
+            tokens: FakeTokenStorage(access: 'a', refresh: 'r'),
+            profile: FakeAuthProfileStorage(user: _trainer),
+            initialLocation: route,
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(seconds: 1));
+
+        expect(
+          find.text(title),
+          findsOneWidget,
+          reason: '$route 가 등록되지 않았거나 다른 화면이 잡았다',
+        );
+        expect(tester.takeException(), isNull);
+      });
+    });
+
+    // **순서 함정을 직접 겨눈다.** 위 테스트만으로는 부족하다 —
+    // `:memberId`가 `feedback`을 먼저 잡아도 "회원 상세"가 뜨므로 그쪽
+    // 단언은 통과하고 `feedback` 쪽만 깨지는데, 무엇이 원인인지 안 보인다.
+    testWidgets('리터럴 경로가 :memberId 보다 먼저 잡힌다', (tester) async {
+      for (final entry in <String, String>{
+        AppRoutes.trainerManageFeedback: '피드백 작성',
+        AppRoutes.trainerManageInvite: '회원 초대',
+        AppRoutes.trainerManageAppend: '회원 추가',
+      }.entries) {
+        await tester.pumpWidget(
+          _app(
+            tokens: FakeTokenStorage(access: 'a', refresh: 'r'),
+            profile: FakeAuthProfileStorage(user: _trainer),
+            initialLocation: entry.key,
+            key: ValueKey<String>(entry.key),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(seconds: 1));
+
+        expect(find.text(entry.value), findsOneWidget);
+        expect(
+          find.text('회원 정보'),
+          findsNothing,
+          reason: '${entry.key} 가 memberId 파라미터로 잡혔다',
+        );
+      }
+    });
+
+    testWidgets('log/write 가 log/:logId 보다 먼저 잡힌다', (tester) async {
+      await tester.pumpWidget(
+        _app(
+          tokens: FakeTokenStorage(access: 'a', refresh: 'r'),
+          profile: FakeAuthProfileStorage(user: _trainer),
+          initialLocation: AppRoutes.trainerManageMemberLogWrite(3),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 1));
+
+      expect(find.text('수업 일지 작성'), findsOneWidget);
+      expect(
+        find.text('수업 일지 상세'),
+        findsNothing,
+        reason: 'write 가 logId 파라미터로 잡혔다',
+      );
     });
   });
 }

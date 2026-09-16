@@ -18,6 +18,14 @@ class AuthApi {
   static const String findIdPath = '/api/v1/auth/find/user-id';
   static const String findPasswordPath = '/api/v1/auth/find/password';
 
+  /// 웹 `entity/auth/api/mutations.ts`의 `useSendVerificationCodeMutation`.
+  ///
+  /// **`/student/mypage/edit/email`이 유일한 사용처**이고, 마이페이지 계열
+  /// 아홉 화면 중 **토큰 없는 인스턴스를 쓰는 유일한 요청**이다.
+  /// `AuthInterceptor._publicPaths`의 `/auth/validation/`이 그것을 맞춘다.
+  static const String sendVerificationCodePath =
+      '/api/v1/auth/validation/send-email';
+
   final Dio _dio;
 
   Future<SignInResponse> signIn(SignInRequest request) async {
@@ -54,5 +62,13 @@ class AuthApi {
       throw const FormatException('비밀번호 찾기 응답 바디가 비었다');
     }
     return FindPasswordResponse.fromJson(body);
+  }
+
+  /// 이메일 인증번호를 보낸다. 응답 값(`ApiResult<String>`)은 쓰지 않는다.
+  Future<void> sendVerificationCode(String email) async {
+    await _dio.post<Map<String, dynamic>>(
+      sendVerificationCodePath,
+      data: <String, dynamic>{'email': email},
+    );
   }
 }

@@ -33,10 +33,16 @@ import '../../core/theme/app_typography.dart';
 /// `test/shared/app_toast_test.dart`가 "화면이 사라진 뒤에 부른 토스트도
 /// 뜬다"로 이 성질을 고정한다.
 ///
-/// 성공 토스트(`successToast`)는 아직 옮기지 않았다. 웹 훅에는 있지만
-/// 부르는 화면이 여기 둘 중 하나도 아니고, `check.svg`에 `fill` 오버라이드를
-/// 거는 방식까지 추측으로 옮기면 검증할 길이 없다 — 쓰는 화면이 생길 때
-/// 그 화면의 렌더를 보고 추가한다.
+/// **성공 토스트는 2026-09-16에 추가했다** — `/trainer/manage/[memberId]`의
+/// 환불 회원 삭제가 첫 사용처다(웹 `successToast(message)`).
+///
+/// 다만 **그 렌더를 보지 못했다.** 이 토스트는 되돌릴 수 없는 삭제가
+/// 성공한 뒤에만 뜨고, 공유 체험 계정에서 그것을 실행할 수 없다. 그래서
+/// 이 파일이 원래 요구하던 "쓰는 화면의 렌더를 보고 추가한다"를 만족시킬
+/// 길이 없었다 — 웹 소스의 클래스에서 옮겼고, 에러 토스트와 **아이콘만
+/// 다르다**(`check.svg` + `fill='var(--primary-500)'` vs `error.svg`).
+/// 껍데기·간격·글꼴·불투명도는 같은 `toast()` 호출이라 공유한다.
+/// `deferred-minors.md`에 디자인 검수 항목으로 남겼다.
 class AppToastController extends ChangeNotifier {
   /// 웹 `use-toast.tsx`의 `TOAST_DURATION = 2000`.
   static const Duration visibleDuration = Duration(milliseconds: 2000);
@@ -55,12 +61,26 @@ class AppToastController extends ChangeNotifier {
   AppToastMessage? get current => _current;
 
   void showError(String? text) {
+    _show(
+      (text == null || text.isEmpty) ? defaultErrorText : text,
+      AppToastVariant.error,
+    );
+  }
+
+  /// 웹 `successToast(message)`.
+  ///
+  /// **에러와 달리 폴백 문구가 없다.** 웹도 `message: string`을 필수로
+  /// 받는다 — 부를 쪽이 서버 응답의 `message`를 그대로 넘긴다.
+  void showSuccess(String text) => _show(text, AppToastVariant.success);
+
+  void _show(String text, AppToastVariant variant) {
     _timer?.cancel();
     _current = AppToastMessage(
       // id는 [AnimatedSwitcher]가 "같은 자리의 다른 토스트"를 구분하는
       // 근거다. 문구가 같은 에러가 연달아 나도 전환이 다시 재생된다.
       id: _nextId++,
-      text: (text == null || text.isEmpty) ? defaultErrorText : text,
+      text: text,
+      variant: variant,
     );
     _timer = Timer(visibleDuration, dismiss);
     notifyListeners();
@@ -84,12 +104,20 @@ class AppToastController extends ChangeNotifier {
   }
 }
 
+/// 웹 훅의 두 진입점(`errorToast` / `successToast`).
+enum AppToastVariant { error, success }
+
 @immutable
 class AppToastMessage {
-  const AppToastMessage({required this.id, required this.text});
+  const AppToastMessage({
+    required this.id,
+    required this.text,
+    this.variant = AppToastVariant.error,
+  });
 
   final int id;
   final String text;
+  final AppToastVariant variant;
 }
 
 /// [AppToastController]를 위젯 트리에 흘린다. [AuthScope]와 같은 구조다.
@@ -178,6 +206,7 @@ class AppToastHost extends StatelessWidget {
                       : _Toast(
                           key: ValueKey<int>(message.id),
                           text: message.text,
+                          variant: message.variant,
                         ),
                 ),
               ),
@@ -190,9 +219,10 @@ class AppToastHost extends StatelessWidget {
 }
 
 class _Toast extends StatelessWidget {
-  const _Toast({required this.text, super.key});
+  const _Toast({required this.text, required this.variant, super.key});
 
   final String text;
+  final AppToastVariant variant;
 
   @override
   Widget build(BuildContext context) {
@@ -237,14 +267,25 @@ class _Toast extends StatelessWidget {
         opacity: AppToastHost.contentOpacity,
         child: Row(
           children: [
-            SvgPicture.asset(
-              // 웹 `IconError`(`error.svg`). 색을 덮지 않는다 — 자산이
-              // 호박색 원(#FFB950) + gray700 느낌표로 고정돼 있고 웹도
-              // `fill` 오버라이드 없이 그대로 쓴다(`successToast`만 덮는다).
-              'assets/images/error.svg',
-              width: AppToastHost.iconSize,
-              height: AppToastHost.iconSize,
-            ),
+            if (variant == AppToastVariant.error)
+              SvgPicture.asset(
+                // 웹 `IconError`(`error.svg`). 색을 덮지 않는다 — 자산이
+                // 호박색 원(#FFB950) + gray700 느낌표로 고정돼 있고 웹도
+                // `fill` 오버라이드 없이 그대로 쓴다(`successToast`만 덮는다).
+                'assets/images/error.svg',
+                width: AppToastHost.iconSize,
+                height: AppToastHost.iconSize,
+              )
+            else
+              SvgPicture.asset(
+                // 웹 `<IconCheck fill={'var(--primary-500)'} />`.
+                // `check.svg`는 첫 `<path>`가 `fill="current"`라 정규화해
+                // 두었다(규율 #13) — 색을 주지 않으면 도형이 사라진다.
+                'assets/images/check.svg',
+                width: AppToastHost.iconSize,
+                height: AppToastHost.iconSize,
+                theme: SvgTheme(currentColor: colors.primary500),
+              ),
             // 웹 `<p className='ml-6 ...'>` = 16px.
             SizedBox(width: spacing.s6),
             Expanded(
