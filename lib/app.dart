@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'core/date/korean_date_format.dart';
 import 'core/network/dio_client.dart';
 import 'core/router/app_router.dart';
 import 'core/storage/auth_profile_storage.dart';
@@ -11,6 +12,11 @@ import 'entity/auth/api/auth_api.dart';
 import 'entity/auth/model/auth_state.dart';
 import 'entity/auth/ui/auth_scope.dart';
 import 'entity/gym/api/gym_api.dart';
+import 'entity/home/api/home_api.dart';
+import 'entity/member/api/member_api.dart';
+import 'entity/schedule/api/schedule_api.dart';
+import 'entity/trainer/api/trainer_api.dart';
+import 'entity/notification/api/notification_api.dart';
 import 'shared/ui/app_toast.dart';
 
 /// OS 글꼴 배율 상한.
@@ -88,6 +94,16 @@ class _GeonganghaejimAppState extends State<GeonganghaejimApp> {
   void initState() {
     super.initState();
 
+    // 웹 `StudentHomePage.tsx:3-6`의 모듈 스코프 `dayjs.locale('ko')` +
+    // `dayjs.extend(customParseFormat)` 대응.
+    //
+    // **`main()`이 아니라 여기다.** `main()`에만 두면 `GeonganghaejimApp`을
+    // 직접 만드는 테스트와 딥링크 진입이 초기화 없이 돌고, `intl`은 로케일
+    // 데이터가 없으면 `DateFormat(..., 'ko')` 생성에서 던진다 — 예약이 있는
+    // 계정에서만 홈이 죽는, 데이터가 있어야 드러나는 실패가 된다.
+    // 라우터·dio와 같은 이유로 조립 지점이 소유한다.
+    KoreanDateFormat.ensureInitialized();
+
     _authState = AuthState(widget.tokenStorage, widget.profileStorage);
 
     // 클라이언트는 **하나**다. API별로 만들면 커넥션 풀과 인터셉터 체인이
@@ -104,6 +120,11 @@ class _GeonganghaejimAppState extends State<GeonganghaejimApp> {
       authState: _authState,
       authApi: AuthApi(dio),
       gymApi: GymApi(dio),
+      homeApi: HomeApi(dio),
+      notificationApi: NotificationApi(dio),
+      memberApi: MemberApi(dio),
+      scheduleApi: ScheduleApi(dio),
+      trainerApi: TrainerApi(dio),
       initialLocation: widget.initialLocation,
     );
 

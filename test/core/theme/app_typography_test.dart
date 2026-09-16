@@ -73,6 +73,46 @@ void main() {
     });
   });
 
+  group('자간 — Material 기본값이 새어 들어오면 안 된다', () {
+    // `Scaffold` 안에서는 Material 3의 `textTheme.bodyMedium`이
+    // `DefaultTextStyle`로 상속되고 그 자간이 **0.25**다. `TextStyle.inherit`가
+    // 기본 true라, 자간을 명시하지 않은 스타일은 그 값을 그대로 물려받는다.
+    //
+    // 웹에는 `letter-spacing` 선언이 없다 — 즉 `normal`(0)이다. 실측:
+    // `수업일지`(4자, 16px)가 웹 55.31인데 앱에서 56.31이 나왔고, 마이페이지
+    // 허브의 320px 바로가기 카드가 그 누적으로 0.78px 넘쳤다.
+    test('모든 스타일이 자간 0을 못박는다', () {
+      for (final style in AppTypography.all) {
+        expect(
+          style.letterSpacing,
+          0,
+          reason:
+              'fontSize ${style.fontSize} / weight ${style.fontWeight} 스타일이 '
+              '자간을 명시하지 않았다 — Material 기본 0.25가 새어 들어온다',
+        );
+      }
+    });
+
+    testWidgets('Scaffold 안에서도 자간이 0으로 유지된다', (tester) async {
+      // 위 단언은 **선언**만 본다. 실제로 상속을 이기는지는 트리에 넣어야
+      // 드러난다 — 글자 폭을 직접 잰다.
+      final key = GlobalKey();
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light(),
+          home: Scaffold(
+            body: Center(
+              child: Text('수업일지', key: key, style: AppTypography.body1),
+            ),
+          ),
+        ),
+      );
+
+      // 웹 실측 55.31(`getBoundingClientRect`). 자간이 새면 56.31이 된다.
+      expect(tester.getSize(find.byKey(key)).width, closeTo(55.31, 0.05));
+    });
+  });
+
   group('AppTheme', () {
     testWidgets('ThemeExtension 3종이 주입된다', (tester) async {
       late BuildContext captured;
