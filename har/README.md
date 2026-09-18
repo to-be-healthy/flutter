@@ -38,6 +38,9 @@ HAR을 버리고 골든만 남기면 그 경로가 사라지고, **모든 후속
 | `mypage-student-last-reservation.har` | 지난 예약 화면 진입 GET 1건 (`schedule/student/my-reservation/old?searchDate=`) | `mypage-student-last-reservation` | `StudentMyPageLastReservationPage` |
 | `trainer-manage.har` | 회원 관리 허브 진입 GET 1건 (`trainers/members`) | `trainer-manage` | `TrainerManagePage` |
 | `trainer-manage-member.har` | 회원 정보 진입 GET 1건 (`trainers/members/6`) | `trainer-manage-member` | `TrainerManageMemberPage` |
+| `trainer-manage-course-history.har` | 수강권 내역 진입 GET 1건 (`members/6/course?page=0&size=20&searchDate=`) | `trainer-manage-course-history` | `TrainerManageCourseHistoryPage` |
+| `trainer-manage-point-history.har` | 포인트 내역 진입 GET **3건** (`members/trainer-mapping` → `trainers/members/6` → `members/6/point?…`) | `trainer-manage-point-history` | `TrainerManagePointHistoryPage` |
+| `trainer-manage-reservation.har` | 예약 내역 진입 GET 2건 (`trainers/reservation/new?memberId=` → `…/old?searchDate=&memberId=`) | `trainer-manage-reservation` | `TrainerManageReservationPage` |
 
 ### `select-gym` 재캡처 시 — 버튼을 누르지 마라
 
@@ -331,3 +334,48 @@ GET /api/v1/trainers/members → {"data":[
   인데 `remain 3`), `memberId 15`는 활성이다. 접이식 포인트 바는 **활성
   분기에서만** 나온다.
 - 픽셀 실측은 `docs/trainer-manage-s2-measurements.md`에 있다.
+
+### `trainer-manage-course-history` 재캡처 시 — 토큰이 살아 있는지 먼저 확인하라
+
+- **캡처 방법:** 트레이너 세션으로 `/trainer/manage/{memberId}/course-history?name={이름}`을 연다.
+  `GET /api/v1/members/{memberId}/course?page=0&size=20&searchDate={이번달}` 하나만 담긴다.
+- **⚠️ 액세스 토큰이 만료된 상태로 캡처하면 골든이 3건이 된다.** 2026-09-18 실측에서
+  첫 진입이 `401 → POST /auth/refresh-token → 재요청`으로 나갔다. 앱에는 401 리프레시가
+  없으므로 그 골든은 위젯 테스트에서 매번 2건 누락으로 떨어진다. **한 번 진입해 토큰을
+  갱신시킨 뒤 다시 진입해서 캡처한다.**
+- **스크롤하지 마라.** 무한스크롤이 `page=1`을 쏘면 골든에 섞인다. 월도 바꾸지 마라
+  (`searchDate`가 바뀐 요청이 하나 더 들어온다).
+- **버튼을 누르지 마라.** `수강권 삭제` → `예`는 `DELETE /api/v1/course/{courseId}`로
+  **그 회원의 수강권을 통째로 지운다**(서베이 §2.1 복구 불가). 등록·연장도 데이터를 만든다.
+  세 뮤테이션은 골든을 만들지 않고 계약 테스트가 요청 모양을 고정한다(`select-gym` 선례).
+- **이 HAR의 `authorization` 값은 캡처 시점에 지웠다** — 변환기가 presence-only로
+  마스킹하므로 생성되는 골든은 실토큰이 있든 없든 같다.
+- 이 요청에도 **`content-type`이 없다**(본문 없는 GET).
+
+
+### `trainer-manage-point-history` 재캡처 시 — 3건이고 **순서가 함정이다**
+
+- **1번이 화면이 아니라 하단바다.** 이 화면은 트레이너 화면인데
+  `<Layout type='student'>`를 써서(BUG-1) 학생 네비가 붙고, 그 네비가
+  `GET /api/v1/members/trainer-mapping`을 **가장 먼저** 쏜다. 서베이는 이
+  순서를 반대로 추론해 뒀었다 — 2026-09-18 실측에서 두 번 모두 네비가 1번이었다.
+- 앱도 그 순서를 맞추려고 화면 요청을 `addPostFrameCallback`으로 한 프레임
+  미룬다(학생 홈과 같은 처리). **골든이 이 순서를 고정하므로 캡처할 때
+  순서를 흐리지 마라.**
+- **스크롤·월 변경 금지.** 월을 바꾸면 `point` 요청이 하나 더 들어온다.
+- 이 화면에는 **뮤테이션이 없다**(읽기 전용) — 버튼을 눌러도 안전하지만,
+  골든에는 진입 3건만 남긴다.
+- `authorization` 값은 캡처 시점에 지웠다(presence-only 마스킹).
+
+
+### `trainer-manage-reservation` 재캡처 시 — **버튼을 누르지 마라**
+
+- 진입 2건이고 **탭이 안 열려 있어도 둘 다 나간다**(훅이 페이지 컴포넌트에 있다).
+  탭을 눌러도 요청이 더 나가지 않으니, 캡처 중 탭 전환 자체는 안전하다.
+- **월을 바꾸지 마라** — `old`가 새 `searchDate`로 한 번 더 나간다.
+- **시트 좌측 버튼(`미출석`/`출석`)은 노쇼 토글 뮤테이션이다.**
+  `DELETE /schedule/no-show/{id}`가 **노쇼 처리**, `POST`가 **해제**다
+  (동사가 직관과 반대다). 카드를 눌러 시트를 여는 것까지는 GET도 안 나가서
+  안전하지만, 그 버튼은 그 회원의 출결을 실제로 바꾼다.
+- `?name=`은 화면 제목에만 쓰이고 API 요청에는 영향이 없다 — 붙이든 말든
+  골든은 같다.
