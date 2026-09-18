@@ -15,6 +15,8 @@ import 'entity/gym/api/gym_api.dart';
 import 'entity/home/api/home_api.dart';
 import 'entity/member/api/member_api.dart';
 import 'entity/schedule/api/schedule_api.dart';
+import 'entity/course/api/course_api.dart';
+import 'entity/point/api/point_api.dart';
 import 'entity/trainer/api/trainer_api.dart';
 import 'entity/notification/api/notification_api.dart';
 import 'shared/ui/app_toast.dart';
@@ -125,6 +127,8 @@ class _GeonganghaejimAppState extends State<GeonganghaejimApp> {
       memberApi: MemberApi(dio),
       scheduleApi: ScheduleApi(dio),
       trainerApi: TrainerApi(dio),
+      courseApi: CourseApi(dio),
+      pointApi: PointApi(dio),
       initialLocation: widget.initialLocation,
     );
 

@@ -1,0 +1,15 @@
+[
+  {
+    "method": "GET",
+    "path": "/api/v1/members/6/course",
+    "query": {
+      "page": "0",
+      "size": "20",
+      "searchDate": "2026-09"
+    },
+    "headers": {
+      "authorization": "***"
+    },
+    "body": null
+  }
+]

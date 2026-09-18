@@ -118,4 +118,12 @@ abstract final class KoreanDateFormat {
   /// 식단전체 링크의 `?month=` 쿼리에 쓴다(`StudentHomePage.tsx:54`).
   /// 로케일과 무관한 숫자 포맷이라 `_locale`을 넘기지 않는다.
   static String month(DateTime date) => DateFormat('yyyy-MM').format(date);
+
+  /// 웹 `dayjs(item.createdAt).format('YY.MM.DD')` → `26.03.29`.
+  ///
+  /// 수강권 내역(`/trainer/manage/[memberId]/course-history`) 항목의 날짜다.
+  /// 두 자리 연도라 `yy`이고, 로케일과 무관한 숫자 포맷이라 `_locale`을
+  /// 넘기지 않는다.
+  static String historyDate(DateTime date) =>
+      DateFormat('yy.MM.dd').format(date);
 }

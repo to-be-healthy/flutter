@@ -727,9 +727,16 @@ void main() {
       AppRoutes.trainerManageAppendMember(7): '회원 추가 상세',
       // 실제 화면. 자리표시자 제목('회원 상세')과 달리 '회원 정보'다.
       AppRoutes.trainerManageMember(3): '회원 정보',
-      AppRoutes.trainerManageMemberCourseHistory(3): '수강 내역',
-      AppRoutes.trainerManageMemberPointHistory(3): '포인트 내역',
-      AppRoutes.trainerManageMemberReservation(3): '예약 내역',
+      // 실제 화면. 제목이 `{name}님 수강권`인데 이 경로에는 `?name=`이
+      // 없어 웹과 같이 **`님 수강권`**이 된다(웹도 `params.get('name')`이
+      // null이면 그렇게 그린다).
+      AppRoutes.trainerManageMemberCourseHistory(3): '님 수강권',
+      // 실제 화면. 제목은 `{name}님 포인트`이고 이름은 스텁이 주는
+      // `trainers/members/3` 응답에서 온다.
+      AppRoutes.trainerManageMemberPointHistory(3): '테스트회원님 포인트',
+      // 실제 화면. `?name=`이 없으면 **제목이 통째로 사라지므로**(웹과 같다)
+      // 제목으로는 도착을 확인할 수 없다 — 탭 라벨로 본다.
+      AppRoutes.trainerManageMemberReservation(3): '다가오는 예약',
       AppRoutes.trainerManageMemberEditMemo(3): '메모 수정',
       AppRoutes.trainerManageMemberEditNickname(3): '닉네임 수정',
       AppRoutes.trainerManageMemberLog(3): '수업 일지',

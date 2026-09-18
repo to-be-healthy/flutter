@@ -87,8 +87,8 @@ class CourseCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
-              _Header(course: course, gymName: gymName),
-              _Progress(course: course),
+              CourseCardHeader(course: course, gymName: gymName),
+              CourseCardContent(course: course),
             ],
           ),
         ),
@@ -125,8 +125,12 @@ class CourseCard extends StatelessWidget {
 }
 
 /// 웹 `CourseCardHeader`.
-class _Header extends StatelessWidget {
-  const _Header({required this.course, required this.gymName});
+class CourseCardHeader extends StatelessWidget {
+  const CourseCardHeader({
+    required this.course,
+    required this.gymName,
+    super.key,
+  });
 
   final Course course;
   final String gymName;
@@ -186,8 +190,8 @@ class _Header extends StatelessWidget {
 }
 
 /// 웹 `CourseCardContent`.
-class _Progress extends StatelessWidget {
-  const _Progress({required this.course});
+class CourseCardContent extends StatelessWidget {
+  const CourseCardContent({required this.course, super.key});
 
   final Course course;
 

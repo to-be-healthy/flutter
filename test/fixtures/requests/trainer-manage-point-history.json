@@ -1,0 +1,33 @@
+[
+  {
+    "method": "GET",
+    "path": "/api/v1/members/trainer-mapping",
+    "query": {},
+    "headers": {
+      "authorization": "***"
+    },
+    "body": null
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/trainers/members/6",
+    "query": {},
+    "headers": {
+      "authorization": "***"
+    },
+    "body": null
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/members/6/point",
+    "query": {
+      "page": "0",
+      "size": "20",
+      "searchDate": "2026-09"
+    },
+    "headers": {
+      "authorization": "***"
+    },
+    "body": null
+  }
+]
