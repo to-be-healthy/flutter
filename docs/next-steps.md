@@ -1,4 +1,4 @@
-# 다음 세션 시작점 (2026-09-16 기준)
+# 다음 세션 시작점 (2026-09-18 기준)
 
 **이 파일부터 읽어라.** `progress.md`는 "왜 그렇게 결정했나"의 시간순 원장이고,
 이 파일은 "이제 무엇을 하나"다. 둘의 역할이 다르다.
@@ -7,17 +7,20 @@
 
 ## 1. 지금 상태 한 줄
 
-웹 라우트 **73개 중 20개** 이관 완료
+웹 라우트 **73개 중 23개** 이관 완료
 (`/`·`/sign-in`·`/find/id`·`/find/pw`·`/select-gym`·`/policy`·
 `/sign-up/complete`·`/student`·`/trainer`·`/student/mypage`·
 `/student/mypage/info`·`/student/mypage/leave`·
 `/student/mypage/edit/password`·`/student/mypage/edit/name`·
 `/student/mypage/alarm`·`/student/mypage/trainer-info`·
 `/student/mypage/edit/email`·`/student/mypage/last-reservation`·
-**`/trainer/manage`**·**`/trainer/manage/[memberId]`**).
+`/trainer/manage`·`/trainer/manage/[memberId]`·
+`/trainer/manage/[memberId]/course-history`·
+`/trainer/manage/[memberId]/point-history`·
+**`/trainer/manage/[memberId]/reservation`**).
 **회원 마이페이지 9개가 전부 끝났고, 트레이너 회원관리 계열 19개 중
-둘이 열렸다.**
-Dart 863 테스트 통과, `verify.sh` 4/4, `flutter analyze` clean.
+다섯이 열렸다.**
+Dart 973 테스트 통과, `verify.sh` 4/4, `flutter analyze` clean.
 
 ### 로그인 착지점이 전부 닫혔다
 
@@ -151,9 +154,15 @@ FCM 블록은 웹에서 **두 화면에 60줄 그대로 복붙**돼 있어(변�
 |---|---|
 | **S1 `/trainer/manage` 나의 회원** | ✅ 완료 (2026-09-16) |
 | **S2 `[memberId]` 회원 정보** | ✅ 완료 (2026-09-16) |
-| S3~S19 (17개) | 자리표시자 — 라우트만 등록됨 |
+| **S3 `[memberId]/course-history` {name}님 수강권** | ✅ 완료 (2026-09-18) |
+| **S4 `[memberId]/point-history` {name}님 포인트** | ✅ 완료 (2026-09-18) |
+| **S5 `[memberId]/reservation` {name}님 예약 내역** | ✅ 완료 (2026-09-18) |
+| S6~S19 (14개) | 자리표시자 — 라우트만 등록됨 |
 
-S2 픽셀 실측은 `docs/trainer-manage-s2-measurements.md`(822줄).
+S2 픽셀 실측은 `docs/trainer-manage-s2-measurements.md`(822줄),
+S3는 `docs/trainer-manage-s3-measurements.md`, S4는
+`docs/trainer-manage-s4-measurements.md`, S5는
+`docs/trainer-manage-s5-measurements.md`다.
 
 #### 서베이 권장 순서를 두 가지 바꿨다
 
@@ -198,6 +207,138 @@ S2 픽셀 실측은 `docs/trainer-manage-s2-measurements.md`(822줄).
 - **요청 실패는 "회원 0명"이 아니다.** 웹 `data`가 `undefined`로 남아
   `등록된 회원이 없습니다.`가 아니라 `검색 결과가 없습니다.`가 뜬다.
   화면이 `_received`로 그 둘을 가른다.
+
+#### S3에서 나온 것 — 서베이가 틀렸던 두 가지
+
+실측 전문은 `docs/trainer-manage-s3-measurements.md`. **서베이만 믿었으면
+둘 다 틀렸을 것이다.**
+
+1. **헤더 `+`는 "만료일 때만"이 아니다.** 웹 조건이
+   `course?.totalLessonCnt === course?.completedLessonCnt`라 **수강권이 없으면
+   `undefined === undefined` → true**다. 즉 만료·수강권없음·**로딩중**(아직
+   데이터가 없다) 셋 다 렌더된다. 서베이는 "만료일 때만"이라고 적었다.
+   앱은 `course == null || course.isExpired` 한 줄로 그 셋을 옮겼고,
+   뮤테이션 M1이 두 테스트로 잡는다.
+2. **빈 목록은 `[]`이지 `null`이 아니다**(실측). 웹 타입 선언과 화면 가드가
+   `null`을 상정해서 서베이도 그렇게 적었는데, 실서버는 빈 배열을 준다.
+   **양쪽 다 파싱한다.**
+
+그리고 **와이어 키는 `isLast`가 맞았다** — Java `boolean isLast`의 빈 게터가
+`last`로 직렬화되는 흔한 함정에 걸리지 않았다. 추측이 아니라 실측으로 확인했고
+모델 테스트가 `last`로는 읽히지 않는다는 것까지 고정한다.
+
+#### 골든을 뜰 때 토큰이 살아 있는지 먼저 보라
+
+첫 캡처가 **401 → `POST /auth/refresh-token` → 재요청** 3건이었다. 그대로
+골든을 떴으면 앱(401 리프레시 없음)이 매번 2건 누락으로 떨어진다. 한 번
+진입해 토큰을 갱신시킨 뒤 다시 캡처했다 — `har/README.md`에 적었다.
+
+> 부수 소득: 웹 401 경로를 실제로 봤다. **갱신 뒤 원 요청이 재시도된다** —
+> §5가 "재시도하지 않는다"고 적어 둔 것과 다르다(인터셉터가 아니라 React
+> Query 쪽에서 나가는 것으로 보인다). 401 리프레시를 옮길 때 이 실측을
+> 근거로 다시 판단할 것.
+
+#### 승격하지 않은 것 둘, 승격한 것 하나
+
+- **삭제 알럿을 공용으로 올리지 않았다.** S2 알럿과 상자(폭 400·패딩 36/20·
+  라운드 8·제목~버튼 34·버튼 48·간격 8)는 같지만 **버튼이 다르다**:
+  S2는 `TITLE_1_SEMIBOLD`(600) + `flex`라 테두리 탓에 폭이 175.55/174.45로
+  어긋나고, S3는 `text-base font-normal`(16/24/400) + `grid grid-cols-2`라
+  **175/175 균등**이다(둘 다 실측). 올리면 글꼴과 폭 분배를 옵션으로 받아야
+  해서 회원 탈퇴 `Dialog` 때와 같은 판단을 했다. **네 번째가 생기면 상자만
+  올리는 것을 재검토한다.**
+- **시트는 반대로 하나로 합쳤다.** 등록 시트와 추가 시트를 각각 재 보니
+  **치수가 완전히 같고 제목·버튼 문구 둘만 다르다**(420×233.4, 패딩
+  24/20/28/20, 입력 100×57, 버튼 380×52). 파라미터 둘짜리 사설 위젯 하나다.
+- **`CourseCardHeader`·`CourseCardContent`를 공개했다.** 웹도 이 둘을
+  `CourseCard` 컨테이너 안에 조합해 쓴다 — S3는 포인트 바 없이 둘만 쓴다.
+
+#### BUG-9은 도달 불가다
+
+웹이 `Number(course?.courseId)`로 만들어 수강권이 없으면 `NaN`이 되지만,
+그 값을 쓰는 두 버튼(`수업 횟수 추가`·`수강권 삭제`)이 **`course &&` 분기
+안에만 있다.** 수강권이 없을 때 눌리는 것은 `courseId`가 없는 등록(POST)뿐이다.
+Dart에 `NaN` 대응물을 만들지 않았다 — 만들면 웹에 없는 경로가 된다.
+
+#### S4에서 나온 것 — 서베이 정정 세 건, 전부 실측이 잡았다
+
+실측 전문은 `docs/trainer-manage-s4-measurements.md`.
+**서베이가 "S3와 동일 형태"라고 적은 화면인데 셋이 달랐다.**
+
+1. **요청이 3건이고 순서가 추론과 반대였다.** 서베이는 화면 본체 →
+   네비로 추론하고 `(추론)`을 달아 뒀는데, 실제로는
+   **`members/trainer-mapping`(학생 하단바)이 1번**이다. 두 번 캡처해
+   확인했다. 학생 홈에서 겪은 것과 같은 함정이라 같은 해법
+   (`addPostFrameCallback`)을 썼고, 뮤테이션 M10이 골든으로 잡는다.
+2. **BUG-14는 버그가 아니었다.** `text-blue-100`이 "생성되지 않는다"고
+   적혀 있었지만 실측 색이 `rgb(219,234,254)`(Tailwind 기본 `blue-100`)다.
+   `tailwind.config.js`의 `colors.blue`가 **`theme.extend` 안**이라 기본
+   팔레트를 덮어쓰지 않고 병합한다. **규율 #5가 스페이싱에 대해 말한 것과
+   같은 규칙인데 서베이가 색에는 적용하지 않았다** — 색 토큰도 같은 눈으로
+   읽어라.
+3. **내역 날짜의 굵기가 S3와 다르다.** S3는 `BODY_4_MEDIUM`(500),
+   S4는 `BODY_4`(400)다. "동일 형태"를 믿고 위젯을 공유했으면 틀린 채
+   통과했을 것이다.
+
+#### 헤더 X가 뒤로가기가 아니다
+
+웹이 `<Link href='./'>`라 **현재 경로의 디렉터리**로 간다 —
+`/trainer/manage/6/point-history` → `/trainer/manage/6`. 눌러서 확인했다.
+그리고 그 링크는 폭이 400인데 **제목이 위에 그려져 가운데가 안 눌린다**
+(playwright 클릭이 `intercepts pointer events`로 실패해서 드러났다).
+**rect가 겹친다고 눌리는 게 아니다.**
+
+> Flutter도 `Stack`에 같은 순서로 넣으면 **저절로 같은 동작**이 된다.
+> 처음엔 `AbsorbPointer`로 감쌌는데 **뮤테이션이 그것을 통과시켜서**
+> 불필요하다는 게 드러났고, 걷어냈다. 순서를 뒤집는 뮤테이션은 잡힌다.
+
+#### 페이징 봉투를 공용으로 올렸다
+
+S3와 S4의 응답 봉투가 **완전히 같았다**(`content`·`isLast`·`pageNumber`·
+`mainData`, `mainData`만 다름). 두 번째 사용처가 생겨
+`core/json/paged_response.dart`로 올렸고 두 화면이 그것을 쓴다.
+계열에 페이징 화면이 더 남아 있다(S5·S8·S16·S18).
+
+#### S5에서 나온 것 — `twSelector`가 만든 클래스는 생성되지 않는다
+
+**새 웹 버그를 찾았다.** 활성 탭이 `HEADING_5`(600)여야 하는데 실측이 400이다.
+`shared/utils/tw-utils.ts`의 `twSelector`가 **런타임에** 클래스 문자열을
+조립해서(`data-[state=active]:font-semibold`) Tailwind JIT이 스캔하지 못하고,
+결국 CSS가 생성되지 않는다. **같은 버튼의 `data-[state=active]:bg-primary-500`은
+소스에 리터럴로 적혀 있어 먹는다** — 한 버튼 안에서 리터럴은 되고 런타임
+조립은 안 되는 것이 증거다.
+
+`twSelector`는 9개 파일에서 쓰이는데 나머지 8곳은 전부 `placeholder:` 변형이라
+입력 자체 타이포를 상속해 **시각적 차이가 없다.** 실제로 드러나는 곳은 S5
+활성 탭 하나다. **두 탭 모두 400으로 그렸고 뮤테이션 M20이 지킨다.**
+
+> **S4의 BUG-14와 짝이다.** 거기서는 "클래스가 생성되지 않는다"는 서베이
+> 주장이 **틀렸고**(extend라 기본값이 살아 있었다), 여기서는 **맞다**.
+> 둘 다 실측으로만 갈렸다 — Tailwind 관련 주장은 재 보고 판단할 것.
+
+#### 노쇼 동사는 반대다 — 뮤테이션으로 지킨다
+
+`DELETE /schedule/no-show/{id}`가 **노쇼 처리**, `POST`가 **해제**다.
+웹이 올바르게 쓰고 있고 그대로 옮겼다. **동사를 뒤집는 뮤테이션(M19)이 두
+테스트로 잡힌다** — 이 계열에서 가장 사고나기 쉬운 자리라 계약 테스트를
+양방향으로 두었다.
+
+#### 예약 카드를 공용으로 올렸다
+
+회원 지난 예약(`/student/mypage/last-reservation`)의 카드와 **치수가 같았다**
+(패딩 16/20 · 라운드 12 · 날짜 `TITLE_3` gray-600 · `gap-y-2` 6 ·
+시간 `TITLE_1_BOLD` · `ml-2` 6). `feature/schedule/ui/reservation_card.dart`로
+올리고 오른쪽 슬롯만 파라미터로 받는다 — 지난 예약은 배지, 트레이너
+"다가오는 예약"은 체크 아이콘이다. 회원 화면 테스트 27개가 그대로 통과했다.
+
+**시트는 합치지 않았다** — 회원 쪽은 `pt-[48px]`에 버튼이 `확인` 하나,
+S5는 `pt-7`(20)에 X가 제목 줄 오른쪽이고 버튼이 둘이다.
+
+#### 제목이 통째로 사라진다
+
+웹이 `{name && `${name}님 예약 내역`}`이라 쿼리 `name`이 없으면
+**`님 예약 내역`조차 렌더되지 않는다**(실측: h2가 0×0). 그대로 옮겼고,
+그래서 `app_test`는 이 화면의 도착을 **탭 라벨로** 확인한다.
 
 #### 남은 후보(계열이 끝나면 다시 고른다)
 
@@ -306,8 +447,9 @@ S2 픽셀 실측은 `docs/trainer-manage-s2-measurements.md`(822줄).
 - **`AppLayoutHeader.titleStyle`** — 웹이 화면마다 `HEADING_4`(bold)와
   `HEADING_4_SEMIBOLD`를 섞어 쓴다. 기본값은 semibold(지금까지 옮긴 아홉
   화면 전부), `/trainer/manage`만 bold다.
-**feature 계층:** `GymSelectList` · `GymVerificationCode` · **`CourseCard`** ·
-**`TodayDietTile`**(타일 렌더만)
+**feature 계층:** `GymSelectList` · `GymVerificationCode` · **`CourseCard`**
+(+ 공개 조각 **`CourseCardHeader`·`CourseCardContent`** — 웹도 이 둘을 컨테이너
+안에 조합해 쓴다. S3는 포인트 바 없이 둘만 쓴다) · **`TodayDietTile`**(타일 렌더만)
 
 > `AppOtpInput`은 **입력 하나 + 슬롯 6개 렌더**다(웹 `input-otp`와 같은 구조).
 > `TextField` 6개로 만들면 붙여넣기와 슬롯 경계 backspace가 달라진다.
@@ -317,6 +459,11 @@ S2 픽셀 실측은 `docs/trainer-manage-s2-measurements.md`(822줄).
 `tabs` · `textarea` · `carousel` · `scroll-area` ·
 `time-swiper` · `generic-form` · `dropdown-menu` · `separator`
 
+> **사설 알럿·시트가 이제 셋·둘이다.** `alert-dialog`는 S2(`_DeleteAlert`)와
+> S3(`_DeleteCourseAlert`)에 하나씩 있는데 **상자는 같고 버튼 글꼴·폭 분배가
+> 다르다**(S3 절 참고). `sheet`도 S2 환불 시트와 S3 수강권 시트가 사설이다.
+> 승격은 "옵션이 늘지 않을 때"가 기준이고, 아직 그 조건이 아니다.
+>
 > `dialog`는 **회원 탈퇴 화면 안에 사설로 하나 있다**
 > (`student_my_page_leave_page.dart`의 `_ConfirmDeleteDialog`). 공용으로
 > 올리지 않은 이유는 사용처가 하나뿐이어서다 — 두 번째가 생기면 그때
@@ -378,6 +525,15 @@ push로 옮기면 **원본과 다른 화면이 된다.**
 
 ## 6. 부채 · 미결
 
+- ⚠️ **이 머신에서 `flutter test`가 Xcode 라이선스 미동의로 막힌다**(2026-09-18).
+  `xcrun`이 stdout에 아무것도 못 내서 `objective_c`(→ `flutter_secure_storage_darwin`)
+  네이티브 빌드 훅이 `Bad state: No element`로 죽고 **테스트가 한 개도 실행되지
+  않는다.** 정식 해결은 터미널에서 `sudo xcodebuild -license accept` 한 번이다
+  (Claude Code의 `!` 경로에서는 TTY가 없어 sudo가 비밀번호를 못 읽는다).
+  임시 우회는 PATH 앞에 `DEVELOPER_DIR=/Library/Developer/CommandLineTools`를
+  export하는 `xcrun` shim을 두는 것 — `DEVELOPER_DIR`만 export하면 flutter가
+  훅 하위 프로세스에 전달하지 않아 듣지 않는다. **레포 문제가 아니라 환경
+  문제다**(`pubspec.lock` 무변경).
 - 커밋·푸시는 **사용자가 요청할 때만** 한다(workspace CLAUDE.md).
 - **`/select-gym`에 웹에 없는 게이트를 넣었다.** 웹 `(login-required)` 그룹에는
   `layout.tsx`가 없어 실제로 막는 것이 없지만, 이 화면이
@@ -560,6 +716,7 @@ push로 옮기면 **원본과 다른 화면이 된다.**
 | **`next-steps.md`** (이 파일) | 다음에 무엇을 하나 |
 | `student-mypage-survey.md` (722줄) | 회원 마이페이지 9개 화면 웹 실측. 요청·계약·웹 버그 24건·스타일·이관 순서 |
 | **`trainer-manage-survey.md`** (1,825줄) | 트레이너 회원관리 19개 화면 웹 실측 + 백엔드 계약 대조. **웹 버그 45건**, 위험한 요청 표(캡처 전 필독), 권장 순서 |
+| **`trainer-manage-s3-measurements.md`** | S3 수강권 화면 픽셀·네트워크 실측(440×900). 서베이가 틀렸던 두 가지와 401 캡처 함정이 여기서 나왔다 |
 | **`trainer-manage-s1-measurements.md`** (335줄) | S1 `/trainer/manage` 픽셀 실측(440×900). 서베이가 못 잡은 일곱 가지가 여기서 나왔다 |
 | `test/flutter_test_config.dart` | **코드지만 읽어라.** 위젯 테스트에 실제 Pretendard를 싣는 이유와 실측값(규율 #17) |
 | `progress.md` (360줄) | 결정과 근거의 시간순 원장. **왜** 그렇게 했는지는 전부 여기 |

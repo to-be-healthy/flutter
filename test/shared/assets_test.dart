@@ -92,6 +92,11 @@ const List<String> _svgAssets = <String>[
   'assets/images/icon_calendar_blue.svg',
   'assets/images/icon_edit.svg',
   'assets/images/icon_dumbel.svg',
+  // 수강권 내역 빈 상태(S3). 웹 `notification.svg` — 원본이 `stroke="current"`라
+  // 그대로 들여왔으면 flutter_svg에서 **한 획도 안 그려진다**(규율 #13).
+  // `currentColor`로 정규화해 이식했고, 화면이 `SvgTheme(currentColor:)`로
+  // 웹의 `stroke='var(--gray-300)'`를 주입한다.
+  'assets/images/notification.svg',
 ];
 
 void main() {

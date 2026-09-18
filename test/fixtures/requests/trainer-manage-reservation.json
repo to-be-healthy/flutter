@@ -1,0 +1,25 @@
+[
+  {
+    "method": "GET",
+    "path": "/api/v1/trainers/reservation/new",
+    "query": {
+      "memberId": "6"
+    },
+    "headers": {
+      "authorization": "***"
+    },
+    "body": null
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/trainers/reservation/old",
+    "query": {
+      "searchDate": "2026-09",
+      "memberId": "6"
+    },
+    "headers": {
+      "authorization": "***"
+    },
+    "body": null
+  }
+]

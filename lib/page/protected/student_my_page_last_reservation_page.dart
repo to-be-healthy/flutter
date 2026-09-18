@@ -9,6 +9,7 @@ import '../../core/theme/app_typography.dart';
 import '../../entity/schedule/api/schedule_api.dart';
 import '../../entity/schedule/model/last_reservation.dart';
 import '../../widget/app_layout.dart';
+import '../../feature/schedule/ui/reservation_card.dart';
 import '../../widget/app_month_picker.dart';
 
 /// 웹 `src/page/mypage/ui/StudentLastReservationPage.tsx` 대응.
@@ -231,6 +232,10 @@ class _NoReservation extends StatelessWidget {
 }
 
 /// 웹 `<Card className='w-full px-6 py-7 text-left'>` + 그것을 여는 `Sheet`.
+///
+/// 카드와 배지는 **트레이너 예약 내역(S5)과 같은 마크업**이라
+/// `feature/schedule/ui/reservation_card.dart`로 올렸다(2026-09-18 실측으로
+/// 치수 일치 확인). 여기 남은 것은 **이 화면만의 시트를 여는 일**뿐이다.
 class _ReservationCard extends StatelessWidget {
   const _ReservationCard({required this.reservation});
 
@@ -238,64 +243,19 @@ class _ReservationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.extension<AppColors>()!;
-    final spacing = theme.extension<AppSpacing>()!;
-    final radius = theme.extension<AppRadius>()!;
+    return ReservationCard(
+      reservation: reservation,
+      trailing: ReservationStatusBadge(isCompleted: reservation.isCompleted),
+      onTap: () => _openDetail(context),
+    );
+  }
 
+  Future<void> _openDetail(BuildContext context) {
+    final radius = Theme.of(context).extension<AppRadius>()!;
     final (start, period) = KoreanDateFormat.twelveHour(
       reservation.lessonStartTime,
     );
     final (end, _) = KoreanDateFormat.twelveHour(reservation.lessonEndTime);
-
-    return GestureDetector(
-      onTap: () => _openDetail(context, start: start, end: end, period: period),
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        // 웹 Card base의 `rounded-lg bg-white p-6` 위에 `px-6 py-7`.
-        padding: EdgeInsets.symmetric(
-          horizontal: spacing.s6,
-          vertical: spacing.s7,
-        ),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(radius.l),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              KoreanDateFormat.lastReservationDay(reservation.lessonDt),
-              style: AppTypography.title3.copyWith(color: colors.gray600),
-            ),
-            // 웹 Card base의 `gap-y-2` = 6.
-            SizedBox(height: spacing.s2),
-            Row(
-              children: [
-                Text(
-                  '$period $start - $end',
-                  // 웹 `text-black` — gray800이 아니다.
-                  style: AppTypography.title1.copyWith(color: Colors.black),
-                ),
-                // 웹 `ml-2` = 6.
-                SizedBox(width: spacing.s2),
-                _StatusBadge(isCompleted: reservation.isCompleted),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _openDetail(
-    BuildContext context, {
-    required String start,
-    required String end,
-    required String period,
-  }) {
-    final radius = Theme.of(context).extension<AppRadius>()!;
 
     return showModalBottomSheet<void>(
       context: context,
@@ -312,41 +272,6 @@ class _ReservationCard extends StatelessWidget {
         day: KoreanDateFormat.lastReservationSheetDay(reservation.lessonDt),
         time: '$period $start - $end',
         isCompleted: reservation.isCompleted,
-      ),
-    );
-  }
-}
-
-/// 웹 상태 배지 (`:108~117`).
-class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({required this.isCompleted});
-
-  final bool isCompleted;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.extension<AppColors>()!;
-    final radius = theme.extension<AppRadius>()!;
-
-    return Container(
-      width: StudentMyPageLastReservationPage.badgeWidth,
-      alignment: Alignment.center,
-      padding: const EdgeInsets.symmetric(
-        vertical: StudentMyPageLastReservationPage.badgeVerticalPadding,
-      ),
-      decoration: BoxDecoration(
-        color: isCompleted
-            ? StudentMyPageLastReservationPage.attendedBadgeBackground
-            : colors.gray100,
-        // 웹 `rounded-sm` = 4.
-        borderRadius: BorderRadius.circular(radius.s),
-      ),
-      child: Text(
-        isCompleted ? '출석' : '미출석',
-        style: AppTypography.body4Medium.copyWith(
-          color: isCompleted ? colors.primary500 : colors.gray700,
-        ),
       ),
     );
   }

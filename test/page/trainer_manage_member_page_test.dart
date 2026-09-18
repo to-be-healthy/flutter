@@ -268,7 +268,9 @@ void main() {
         await tester.pump();
 
         expect(navigated, <String>[
-          '/trainer/manage/6/reservation',
+          // 웹도 `?name=${memberInfo?.name}`을 붙인다 — 예약 내역 화면이
+          // 이름을 쿼리에서만 읽고, 없으면 제목이 통째로 사라진다.
+          '/trainer/manage/6/reservation?name=%EC%B0%A8%EC%9D%80%EC%9A%B0',
           '/trainer/manage/6/edit/memo',
           '/trainer/manage/6/log',
         ]);

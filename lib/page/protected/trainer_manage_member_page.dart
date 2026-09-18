@@ -239,7 +239,11 @@ class _TrainerManageMemberPageState extends State<TrainerManageMemberPage> {
         pointBarHeight: null,
         onTogglePoint: () => setState(() => _isPointOpen = !_isPointOpen),
         onOpenCourseHistory: () => widget.onNavigate(
-          AppRoutes.trainerManageMemberCourseHistory(widget.memberId),
+          // 웹 `query: {name: memberInfo.name}` — 다음 화면 제목이 쓴다.
+          AppRoutes.trainerManageMemberCourseHistory(
+            widget.memberId,
+            name: detail.name,
+          ),
         ),
         onOpenPointHistory: () => widget.onNavigate(
           AppRoutes.trainerManageMemberPointHistory(widget.memberId),
@@ -586,8 +590,11 @@ class _ShortcutCard extends StatelessWidget {
             width: 19,
             height: 18,
             label: '예약 내역',
-            onTap: () =>
-                onNavigate(AppRoutes.trainerManageMemberReservation(memberId)),
+            // 웹 `?name=${memberInfo?.name}` — 없으면 다음 화면의 제목이
+            // 통째로 사라진다.
+            onTap: () => onNavigate(
+              AppRoutes.trainerManageMemberReservation(memberId, name: name),
+            ),
           ),
           _ShortcutDivider(color: colors.gray100),
           _ShortcutColumn(

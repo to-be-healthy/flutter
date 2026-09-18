@@ -7,6 +7,8 @@ import '../../entity/gym/api/gym_api.dart';
 import '../../entity/home/api/home_api.dart';
 import '../../entity/member/api/member_api.dart';
 import '../../entity/schedule/api/schedule_api.dart';
+import '../../entity/course/api/course_api.dart';
+import '../../entity/point/api/point_api.dart';
 import '../../entity/trainer/api/trainer_api.dart';
 import '../../entity/notification/api/notification_api.dart';
 import '../../page/protected/select_gym_page.dart';
@@ -21,6 +23,9 @@ import '../../page/protected/student_my_page_info_page.dart';
 import '../../page/protected/student_my_page_last_reservation_page.dart';
 import '../../page/protected/student_my_page_leave_page.dart';
 import '../../page/protected/trainer_home_page.dart';
+import '../../page/protected/trainer_manage_course_history_page.dart';
+import '../../page/protected/trainer_manage_point_history_page.dart';
+import '../../page/protected/trainer_manage_reservation_page.dart';
 import '../../page/protected/trainer_manage_member_page.dart';
 import '../../page/protected/trainer_manage_page.dart';
 import '../../page/public/find_id_page.dart';
@@ -136,12 +141,39 @@ abstract final class AppRoutes {
   /// 자식 하나뿐이라 상수로 버틴 것과 다르다.
   static String trainerManageMember(Object memberId) =>
       '$trainerManage/$memberId';
-  static String trainerManageMemberCourseHistory(Object memberId) =>
-      '${trainerManageMember(memberId)}/course-history';
+
+  /// 웹은 이 링크에 **이름을 쿼리로 실어 보낸다**
+  /// (`TrainerStudentDetailPage/index.tsx:133-136`의
+  /// `query: {name: memberInfo.name}`). 화면이 헤더 제목
+  /// `{name}님 수강권`에만 쓰고, 없으면 `님 수강권`이 된다.
+  static String trainerManageMemberCourseHistory(
+    Object memberId, {
+    String? name,
+  }) {
+    final path = '${trainerManageMember(memberId)}/course-history';
+    if (name == null || name.isEmpty) {
+      return path;
+    }
+    return Uri(path: path, queryParameters: {nameQuery: name}).toString();
+  }
+
   static String trainerManageMemberPointHistory(Object memberId) =>
       '${trainerManageMember(memberId)}/point-history';
-  static String trainerManageMemberReservation(Object memberId) =>
-      '${trainerManageMember(memberId)}/reservation';
+
+  /// 웹도 이름을 쿼리로 실어 보낸다
+  /// (`TrainerStudentDetailPage/index.tsx:98`의 `?name=${memberInfo?.name}`).
+  /// **없으면 제목이 통째로 사라진다** — 화면이 `{name && ...}`이기 때문이다.
+  static String trainerManageMemberReservation(
+    Object memberId, {
+    String? name,
+  }) {
+    final path = '${trainerManageMember(memberId)}/reservation';
+    if (name == null || name.isEmpty) {
+      return path;
+    }
+    return Uri(path: path, queryParameters: {nameQuery: name}).toString();
+  }
+
   static String trainerManageMemberEditMemo(Object memberId) =>
       '${trainerManageMember(memberId)}/edit/memo';
   static String trainerManageMemberEditNickname(Object memberId) =>
@@ -206,6 +238,8 @@ GoRouter createRouter({
   required MemberApi memberApi,
   required ScheduleApi scheduleApi,
   required TrainerApi trainerApi,
+  required CourseApi courseApi,
+  required PointApi pointApi,
   String initialLocation = AppRoutes.onboarding,
 }) {
   return GoRouter(
@@ -532,23 +566,35 @@ GoRouter createRouter({
             routes: [
               GoRoute(
                 path: 'course-history',
-                builder: (context, state) => const NotImplementedPage(
-                  title: '수강 내역',
-                  webRoute: '/trainer/manage/[memberId]/course-history',
+                builder: (context, state) => TrainerManageCourseHistoryPage(
+                  courseApi: courseApi,
+                  memberId: state.pathParameters['memberId'] ?? '',
+                  // 웹도 없으면 `님 수강권`이 된다 — 빈 문자열이 그 상태다.
+                  name: state.uri.queryParameters[AppRoutes.nameQuery] ?? '',
+                  onBack: () => context.pop(),
+                  onNavigate: context.go,
                 ),
               ),
               GoRoute(
                 path: 'point-history',
-                builder: (context, state) => const NotImplementedPage(
-                  title: '포인트 내역',
-                  webRoute: '/trainer/manage/[memberId]/point-history',
+                builder: (context, state) => TrainerManagePointHistoryPage(
+                  trainerApi: trainerApi,
+                  pointApi: pointApi,
+                  // 학생 하단바가 `trainer-mapping`을 쏜다(BUG-1) — 화면
+                  // 본체가 아니라 네비가 쓰는 의존이다.
+                  memberApi: memberApi,
+                  memberId: state.pathParameters['memberId'] ?? '',
+                  onNavigate: context.go,
                 ),
               ),
               GoRoute(
                 path: 'reservation',
-                builder: (context, state) => const NotImplementedPage(
-                  title: '예약 내역',
-                  webRoute: '/trainer/manage/[memberId]/reservation',
+                builder: (context, state) => TrainerManageReservationPage(
+                  scheduleApi: scheduleApi,
+                  memberId: state.pathParameters['memberId'] ?? '',
+                  // 웹도 없으면 제목이 통째로 사라진다.
+                  name: state.uri.queryParameters[AppRoutes.nameQuery] ?? '',
+                  onBack: () => context.pop(),
                 ),
               ),
               // 웹에 `edit/page.tsx`가 없어 `/edit` 자체는 화면이 아니다 —
